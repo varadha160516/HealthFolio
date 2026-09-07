@@ -1,0 +1,17 @@
+{
+  "name": "careloop",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:web": "npm run dev --workspace=web",
+    "build:web": "npm run build --workspace=web",
+    "build:server": "npm run build --workspace=server",
+    "test:server": "npm run test --workspace=server",
+    "cap:sync": "npm run build:web && npx cap sync android"
+  }
+}

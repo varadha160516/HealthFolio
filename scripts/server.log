@@ -1,0 +1,64 @@
+
+> careloop@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> careloop-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+
+> careloop@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> careloop-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+
+> careloop@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> careloop-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+
+> careloop@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> careloop-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+6:13:13 pm [tsx] change in ./src\routes\appointments.ts Restarting...
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+6:13:29 pm [tsx] change in ./src\routes\appointments.ts Restarting...
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+Error: NOT NULL constraint failed: medication_schedules.created_at
+    at <anonymous> (C:\Users\varad\CareLoop\server\src\routes\appointments.ts:383:20)
+    at Layer.handle [as handle_request] (C:\Users\varad\CareLoop\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\varad\CareLoop\node_modules\express\lib\router\route.js:149:13)
+    at <anonymous> (C:\Users\varad\CareLoop\server\src\middleware\auth.ts:26:5)
+    at Layer.handle [as handle_request] (C:\Users\varad\CareLoop\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\varad\CareLoop\node_modules\express\lib\router\route.js:149:13)
+    at requireAuth (C:\Users\varad\CareLoop\server\src\middleware\auth.ts:19:3)
+    at Layer.handle [as handle_request] (C:\Users\varad\CareLoop\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\varad\CareLoop\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\Users\varad\CareLoop\node_modules\express\lib\router\route.js:119:3) {
+  code: 'ERR_SQLITE_ERROR',
+  errcode: 1299,
+  errstr: 'constraint failed'
+}
+6:15:44 pm [tsx] change in ./src\routes\appointments.ts Restarting...
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)

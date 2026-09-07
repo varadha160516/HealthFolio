@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+    a { color: #8D97E3; } a:hover { color: #625C94; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: linear-gradient(to bottom, #F8F4FC, #F0F1FB 40%, #E9EEF9); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="padding: 20px 16px 0; display: flex; align-items: center; gap: 14px;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A3564" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <span style="font-size: 17px; font-weight: 700; color: #3A3564;">Patient snapshot</span>
+  </div>
+
+  <div style="flex: 1; padding: 18px 16px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+
+    <div style="display: flex; align-items: flex-start; gap: 12px;">
+      <div style="width: 52px; height: 52px; border-radius: 999px; background: linear-gradient(135deg, #423C6E, #625C94); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <span style="color: #FFFFFF; font-weight: 700; font-size: 17px;">MI</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 20px; font-weight: 700; color: #3A3564; letter-spacing: -0.2px;">Meera Iyer</span>
+        <span style="font-size: 12.5px; color: #9A99AE; font-weight: 500;">34 years &middot; Female</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+      <div style="padding: 6px 11px; border-radius: 999px; background: #F2F1FA;"><span style="font-size: 11.5px; font-weight: 600; color: #3A3564;">Blood group &middot; O+</span></div>
+      <div style="padding: 4px 10px; border-radius: 999px; background: #E6F7EF; display: flex; align-items: center; gap: 6px;">
+        <div style="width: 6px; height: 6px; border-radius: 999px; background: #6FBE9C;"></div>
+        <span style="font-size: 11.5px; font-weight: 600; color: #6FBE9C;">Ready</span>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #E8EBF9; border-radius: 16px; padding: 13px; box-shadow: 0 3px 14px rgba(66,60,110,0.06); display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-size: 10px; color: #C7C6D8; font-weight: 700; letter-spacing: 0.4px;">TODAY'S REASON</span>
+      <span style="font-size: 13.5px; font-weight: 600; color: #3A3564;">Follow-up: recurring migraine, worse in the evenings</span>
+    </div>
+
+    <div style="background: #FDEBF1; border: 1px solid rgba(233,147,176,0.35); border-radius: 16px; padding: 13px; display: flex; align-items: center; gap: 10px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E993B0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      <span style="font-size: 13.5px; font-weight: 700; color: #E993B0;">Allergy: Sulfonamides</span>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #E8EBF9; border-radius: 16px; padding: 13px; box-shadow: 0 3px 14px rgba(66,60,110,0.06); display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 14.5px; font-weight: 700; color: #3A3564;">Allergies &amp; conditions</span>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div><span style="font-size: 12.5px; color: #9A99AE; font-weight: 600;">Allergies: </span><span style="font-size: 12.5px; color: #3A3564;">Sulfonamides</span></div>
+        <div><span style="font-size: 12.5px; color: #9A99AE; font-weight: 600;">Chronic conditions: </span><span style="font-size: 12.5px; color: #3A3564;">Migraine, hypothyroidism</span></div>
+        <div><span style="font-size: 12.5px; color: #9A99AE; font-weight: 600;">Current medications: </span><span style="font-size: 12.5px; color: #3A3564;">Levothyroxine 50mcg</span></div>
+      </div>
+    </div>
+
+    <div style="flex: 1;"></div>
+
+    <div style="width: 100%; padding: 15px; border-radius: 999px; background: #423C6E; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+      <span style="color: #FFFFFF; font-weight: 600; font-size: 15px;">Start Consultation</span>
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

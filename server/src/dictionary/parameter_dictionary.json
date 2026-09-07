@@ -1,0 +1,2505 @@
+{
+  "_meta": {
+    "name": "CareLoop Master Canonical Parameter Dictionary",
+    "version": "1.1.0",
+    "generated": "2026-08-18",
+    "changelog": "v1.1.0: cross-checked v1.0.0 ranges against web sources (Mayo Clinic, Cleveland Clinic, MedlinePlus, LabCorp/Quest-cited ranges, StatPearls, NCEP ATP III/AHA lipid guidance, Geeky Medics clinical reference tables, ACP reference-range tables) rather than training data alone; corrected HDL to open_lower_bound (higher is protective, not a fixed band), adjusted ALP and total bilirubin to better-corroborated ranges, and added 10 parameters (amylase, lipase, D-dimer, ANA, anti-TPO, LH, FSH, beta-hCG, BNP, ammonia) identified during research as common in comprehensive panels but missing from v1.0.0.",
+    "total_parameters": 129,
+    "categories": [
+      "Vitals",
+      "CBC",
+      "Diabetes panel",
+      "Lipid panel",
+      "Liver function",
+      "Kidney function",
+      "Electrolytes",
+      "Thyroid panel",
+      "Vitamins",
+      "Iron studies",
+      "Cardiac markers",
+      "Inflammatory markers",
+      "Coagulation",
+      "Urine routine",
+      "Hormones",
+      "Serology",
+      "Cancer markers",
+      "Pancreatic function"
+    ],
+    "known_limitation": "Reference ranges here are unisex adult defaults. Cross-checking confirmed several parameters have clinically meaningful sex-specific (hemoglobin, hematocrit, RBC, ferritin, uric acid, testosterone, estradiol, ALT/AST, GGT) and some age/life-stage-specific (pregnancy thyroid panel, pediatric CBC) reference ranges that this version does not yet model separately — flagged as the next dictionary enhancement rather than silently assumed away.",
+    "important_note": "typical_reference_range is a FALLBACK default only. Whenever a source lab report prints its own reference range for a result, that printed range must be stored alongside the value and used for in-range/out-of-range flagging for that result — the dictionary default is used only when a report omits a range, and for cross-report plausibility validation (see PRD Section 4.6). This matters more than usual here: verified sources for the same parameter (e.g. WBC, ALT, ALP) disagreed with each other by meaningful margins, confirming there is no single universal ground truth range to encode."
+  },
+  "parameters": [
+    {
+      "canonical_parameter_id": "systolic_bp",
+      "display_name": "Systolic BP",
+      "category": "Vitals",
+      "canonical_unit": "mmHg",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 90,
+        "high": 120
+      },
+      "aliases": [
+        "Systolic BP",
+        "SBP",
+        "Blood Pressure Systolic",
+        "BP Systolic"
+      ],
+      "plausible_range_for_validation": [
+        27,
+        480
+      ]
+    },
+    {
+      "canonical_parameter_id": "diastolic_bp",
+      "display_name": "Diastolic BP",
+      "category": "Vitals",
+      "canonical_unit": "mmHg",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 60,
+        "high": 80
+      },
+      "aliases": [
+        "Diastolic BP",
+        "DBP",
+        "Blood Pressure Diastolic",
+        "BP Diastolic"
+      ],
+      "plausible_range_for_validation": [
+        18,
+        320
+      ]
+    },
+    {
+      "canonical_parameter_id": "pulse_rate",
+      "display_name": "Pulse Rate",
+      "category": "Vitals",
+      "canonical_unit": "bpm",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 60,
+        "high": 100
+      },
+      "aliases": [
+        "Pulse",
+        "Pulse Rate",
+        "Heart Rate",
+        "HR"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        400
+      ]
+    },
+    {
+      "canonical_parameter_id": "body_temperature",
+      "display_name": "Body Temperature",
+      "category": "Vitals",
+      "canonical_unit": "°F",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 97,
+        "high": 99
+      },
+      "aliases": [
+        "Temperature",
+        "Temp",
+        "Body Temperature"
+      ],
+      "plausible_range_for_validation": [
+        29.1,
+        396
+      ]
+    },
+    {
+      "canonical_parameter_id": "spo2",
+      "display_name": "Oxygen Saturation",
+      "category": "Vitals",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 95,
+        "high": 100
+      },
+      "aliases": [
+        "SpO2",
+        "Oxygen Saturation",
+        "SPO2",
+        "O2 Saturation"
+      ],
+      "plausible_range_for_validation": [
+        28.5,
+        400
+      ]
+    },
+    {
+      "canonical_parameter_id": "weight",
+      "display_name": "Weight",
+      "category": "Vitals",
+      "canonical_unit": "kg",
+      "range_type": "none",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 999
+      },
+      "aliases": [
+        "Weight",
+        "Body Weight",
+        "Wt"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        4995
+      ]
+    },
+    {
+      "canonical_parameter_id": "height",
+      "display_name": "Height",
+      "category": "Vitals",
+      "canonical_unit": "cm",
+      "range_type": "none",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 250
+      },
+      "aliases": [
+        "Height",
+        "Ht"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        1250
+      ]
+    },
+    {
+      "canonical_parameter_id": "bmi",
+      "display_name": "BMI",
+      "category": "Vitals",
+      "canonical_unit": "kg/m2",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 18.5,
+        "high": 24.9
+      },
+      "aliases": [
+        "BMI",
+        "Body Mass Index"
+      ],
+      "plausible_range_for_validation": [
+        5.55,
+        99.6
+      ]
+    },
+    {
+      "canonical_parameter_id": "waist_circumference",
+      "display_name": "Waist Circumference",
+      "category": "Vitals",
+      "canonical_unit": "cm",
+      "range_type": "none",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 200
+      },
+      "aliases": [
+        "Waist Circumference",
+        "Waist"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        1000
+      ]
+    },
+    {
+      "canonical_parameter_id": "waist_hip_ratio",
+      "display_name": "Waist-Hip Ratio",
+      "category": "Vitals",
+      "canonical_unit": "ratio",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 0.9
+      },
+      "aliases": [
+        "Waist Hip Ratio",
+        "WHR"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.9
+      ]
+    },
+    {
+      "canonical_parameter_id": "body_fat_pct",
+      "display_name": "Body Fat %",
+      "category": "Vitals",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 10,
+        "high": 25
+      },
+      "aliases": [
+        "Body Fat %",
+        "Body Fat Percentage"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        100
+      ]
+    },
+    {
+      "canonical_parameter_id": "hemoglobin",
+      "display_name": "Hemoglobin",
+      "category": "CBC",
+      "canonical_unit": "g/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 13,
+        "high": 17
+      },
+      "aliases": [
+        "Hemoglobin",
+        "Hb",
+        "Haemoglobin",
+        "HGB"
+      ],
+      "plausible_range_for_validation": [
+        3.9,
+        68
+      ]
+    },
+    {
+      "canonical_parameter_id": "rbc_count",
+      "display_name": "RBC Count",
+      "category": "CBC",
+      "canonical_unit": "x10^6/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 4.5,
+        "high": 5.5
+      },
+      "aliases": [
+        "RBC",
+        "Total RBC",
+        "Red Blood Cell Count",
+        "Erythrocyte Count"
+      ],
+      "plausible_range_for_validation": [
+        1.35,
+        22
+      ]
+    },
+    {
+      "canonical_parameter_id": "hematocrit",
+      "display_name": "Hematocrit",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 40,
+        "high": 50
+      },
+      "aliases": [
+        "HCT",
+        "Hematocrit",
+        "Hematocrit (PCV)",
+        "PCV",
+        "Packed Cell Volume"
+      ],
+      "plausible_range_for_validation": [
+        12,
+        200
+      ]
+    },
+    {
+      "canonical_parameter_id": "mcv",
+      "display_name": "MCV",
+      "category": "CBC",
+      "canonical_unit": "fL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 83,
+        "high": 101
+      },
+      "aliases": [
+        "MCV",
+        "Mean Corpuscular Volume"
+      ],
+      "plausible_range_for_validation": [
+        24.9,
+        404
+      ]
+    },
+    {
+      "canonical_parameter_id": "mch",
+      "display_name": "MCH",
+      "category": "CBC",
+      "canonical_unit": "pg",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 27,
+        "high": 32
+      },
+      "aliases": [
+        "MCH",
+        "Mean Corpuscular Hemoglobin"
+      ],
+      "plausible_range_for_validation": [
+        8.1,
+        128
+      ]
+    },
+    {
+      "canonical_parameter_id": "mchc",
+      "display_name": "MCHC",
+      "category": "CBC",
+      "canonical_unit": "g/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 31.5,
+        "high": 34.5
+      },
+      "aliases": [
+        "MCHC",
+        "Mean Corp.Hemo. Conc",
+        "Mean Corpuscular Hemoglobin Concentration"
+      ],
+      "plausible_range_for_validation": [
+        9.45,
+        138
+      ]
+    },
+    {
+      "canonical_parameter_id": "rdw_cv",
+      "display_name": "RDW-CV",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 11.5,
+        "high": 14
+      },
+      "aliases": [
+        "RDW-CV",
+        "RDW",
+        "Red Cell Distribution Width (RDW-CV)",
+        "RDW CV"
+      ],
+      "plausible_range_for_validation": [
+        3.45,
+        56
+      ]
+    },
+    {
+      "canonical_parameter_id": "rdw_sd",
+      "display_name": "RDW-SD",
+      "category": "CBC",
+      "canonical_unit": "fL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 39,
+        "high": 46
+      },
+      "aliases": [
+        "RDW-SD",
+        "Red Cell Distribution Width - SD",
+        "RDW SD"
+      ],
+      "plausible_range_for_validation": [
+        11.7,
+        184
+      ]
+    },
+    {
+      "canonical_parameter_id": "rdwi",
+      "display_name": "RDWI",
+      "category": "CBC",
+      "canonical_unit": "unitless",
+      "range_type": "interpretive_rule",
+      "typical_reference_range": null,
+      "aliases": [
+        "RDWI",
+        "Red Cell Distribution Width Index"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "mentzer_index",
+      "display_name": "Mentzer Index",
+      "category": "CBC",
+      "canonical_unit": "unitless",
+      "range_type": "interpretive_rule",
+      "typical_reference_range": null,
+      "aliases": [
+        "Mentzer Index",
+        "MI"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "wbc_count",
+      "display_name": "Total Leucocyte Count (WBC)",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 4,
+        "high": 10
+      },
+      "aliases": [
+        "Total Leucocyte Count",
+        "WBC",
+        "Total WBC Count",
+        "Total Leucocyte Count (WBC)",
+        "White Blood Cell Count"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        40
+      ]
+    },
+    {
+      "canonical_parameter_id": "neutrophils_pct",
+      "display_name": "Neutrophils %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 40,
+        "high": 80
+      },
+      "aliases": [
+        "Neutrophils",
+        "Neutrophils Percentage",
+        "Neutrophils %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        320
+      ]
+    },
+    {
+      "canonical_parameter_id": "lymphocytes_pct",
+      "display_name": "Lymphocytes %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 20,
+        "high": 40
+      },
+      "aliases": [
+        "Lymphocytes",
+        "Lymphocytes Percentage",
+        "Lymphocytes %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        160
+      ]
+    },
+    {
+      "canonical_parameter_id": "monocytes_pct",
+      "display_name": "Monocytes %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 2,
+        "high": 10
+      },
+      "aliases": [
+        "Monocytes",
+        "Monocytes Percentage",
+        "Monocytes %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        42
+      ]
+    },
+    {
+      "canonical_parameter_id": "eosinophils_pct",
+      "display_name": "Eosinophils %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1,
+        "high": 6
+      },
+      "aliases": [
+        "Eosinophils",
+        "Eosinophils Percentage",
+        "Eosinophils %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        26
+      ]
+    },
+    {
+      "canonical_parameter_id": "basophils_pct",
+      "display_name": "Basophils %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 2
+      },
+      "aliases": [
+        "Basophils",
+        "Basophils Percentage",
+        "Basophils %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        10
+      ]
+    },
+    {
+      "canonical_parameter_id": "immature_granulocyte_pct",
+      "display_name": "Immature Granulocyte %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 0.5
+      },
+      "aliases": [
+        "Immature Granulocyte Percentage",
+        "IG%",
+        "Immature Granulocytes %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.5
+      ]
+    },
+    {
+      "canonical_parameter_id": "nrbc_pct",
+      "display_name": "Nucleated RBC %",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 5
+      },
+      "aliases": [
+        "Nucleated Red Blood Cells %",
+        "NRBC %"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        25
+      ]
+    },
+    {
+      "canonical_parameter_id": "anc",
+      "display_name": "Absolute Neutrophil Count",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 2,
+        "high": 7
+      },
+      "aliases": [
+        "Absolute Neutrophil Count",
+        "Neutrophils - Absolute Count",
+        "ANC"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        28
+      ]
+    },
+    {
+      "canonical_parameter_id": "alc",
+      "display_name": "Absolute Lymphocyte Count",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1,
+        "high": 3
+      },
+      "aliases": [
+        "Absolute Lymphocyte Count",
+        "Lymphocytes - Absolute Count",
+        "ALC"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        12
+      ]
+    },
+    {
+      "canonical_parameter_id": "amc",
+      "display_name": "Absolute Monocyte Count",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.2,
+        "high": 1
+      },
+      "aliases": [
+        "Absolute Monocyte Count",
+        "Monocytes - Absolute Count"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        6
+      ]
+    },
+    {
+      "canonical_parameter_id": "aec",
+      "display_name": "Absolute Eosinophil Count",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.02,
+        "high": 0.5
+      },
+      "aliases": [
+        "Absolute Eosinophil Count",
+        "Eosinophils - Absolute Count"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.5
+      ]
+    },
+    {
+      "canonical_parameter_id": "abc",
+      "display_name": "Absolute Basophil Count",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.02,
+        "high": 0.1
+      },
+      "aliases": [
+        "Absolute Basophil Count",
+        "Basophils - Absolute Count"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.1
+      ]
+    },
+    {
+      "canonical_parameter_id": "ig_absolute",
+      "display_name": "Immature Granulocytes (Absolute)",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 0.3
+      },
+      "aliases": [
+        "Immature Granulocytes (IG)"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.3
+      ]
+    },
+    {
+      "canonical_parameter_id": "nrbc_absolute",
+      "display_name": "Nucleated RBC (Absolute)",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 0.5
+      },
+      "aliases": [
+        "Nucleated Red Blood Cells"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.5
+      ]
+    },
+    {
+      "canonical_parameter_id": "platelet_count",
+      "display_name": "Platelet Count",
+      "category": "CBC",
+      "canonical_unit": "x10^3/uL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 150,
+        "high": 410
+      },
+      "aliases": [
+        "Platelet Count",
+        "Platelets",
+        "PLT"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        1640
+      ]
+    },
+    {
+      "canonical_parameter_id": "mpv",
+      "display_name": "MPV",
+      "category": "CBC",
+      "canonical_unit": "fL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 6.5,
+        "high": 12
+      },
+      "aliases": [
+        "MPV",
+        "Mean Platelet Volume"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        48
+      ]
+    },
+    {
+      "canonical_parameter_id": "pdw",
+      "display_name": "PDW",
+      "category": "CBC",
+      "canonical_unit": "fL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 9,
+        "high": 17
+      },
+      "aliases": [
+        "PDW",
+        "Platelet Distribution Width"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        68
+      ]
+    },
+    {
+      "canonical_parameter_id": "plcr",
+      "display_name": "PLCR",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 19.7,
+        "high": 42.4
+      },
+      "aliases": [
+        "PLCR",
+        "Platelet to Large Cell Ratio",
+        "P-LCR"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        169.6
+      ]
+    },
+    {
+      "canonical_parameter_id": "plateletcrit",
+      "display_name": "Plateletcrit",
+      "category": "CBC",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.19,
+        "high": 0.39
+      },
+      "aliases": [
+        "PCT",
+        "Plateletcrit"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.39
+      ]
+    },
+    {
+      "canonical_parameter_id": "esr",
+      "display_name": "ESR",
+      "category": "CBC",
+      "canonical_unit": "mm/hr",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 20
+      },
+      "aliases": [
+        "ESR",
+        "Erythrocyte Sedimentation Rate"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        100
+      ]
+    },
+    {
+      "canonical_parameter_id": "fasting_glucose",
+      "display_name": "Fasting Glucose",
+      "category": "Diabetes panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 70,
+        "high": 100
+      },
+      "aliases": [
+        "Fasting Blood Sugar",
+        "FBS",
+        "Glucose Fasting",
+        "Fasting Plasma Glucose",
+        "Fasting Glucose(Glucose)"
+      ],
+      "plausible_range_for_validation": [
+        10,
+        400
+      ]
+    },
+    {
+      "canonical_parameter_id": "pp_glucose",
+      "display_name": "Post-Prandial Glucose",
+      "category": "Diabetes panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 70,
+        "high": 140
+      },
+      "aliases": [
+        "PP Blood Sugar",
+        "PPBS",
+        "Post Prandial Glucose",
+        "2-Hour Post Meal Glucose"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        560
+      ]
+    },
+    {
+      "canonical_parameter_id": "random_glucose",
+      "display_name": "Random Glucose",
+      "category": "Diabetes panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 70,
+        "high": 140
+      },
+      "aliases": [
+        "Random Blood Sugar",
+        "RBS",
+        "Random Glucose"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        560
+      ]
+    },
+    {
+      "canonical_parameter_id": "hba1c",
+      "display_name": "HbA1c",
+      "category": "Diabetes panel",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 4,
+        "high": 5.6
+      },
+      "aliases": [
+        "HbA1c",
+        "Hb A1c",
+        "Glycosylated Hemoglobin",
+        "Glycated Hemoglobin (HbA1c)",
+        "A1C",
+        "GHb"
+      ],
+      "plausible_range_for_validation": [
+        0.8,
+        22.4
+      ]
+    },
+    {
+      "canonical_parameter_id": "fasting_insulin",
+      "display_name": "Fasting Insulin",
+      "category": "Diabetes panel",
+      "canonical_unit": "uIU/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 2.6,
+        "high": 24.9
+      },
+      "aliases": [
+        "Fasting Insulin",
+        "Insulin Fasting"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        114.1
+      ]
+    },
+    {
+      "canonical_parameter_id": "homa_ir",
+      "display_name": "HOMA-IR",
+      "category": "Diabetes panel",
+      "canonical_unit": "unitless",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 1.9
+      },
+      "aliases": [
+        "HOMA-IR",
+        "Homeostatic Model Assessment"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        9.5
+      ]
+    },
+    {
+      "canonical_parameter_id": "total_cholesterol",
+      "display_name": "Total Cholesterol",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 199
+      },
+      "aliases": [
+        "Total Cholesterol",
+        "Cholesterol Total",
+        "T. Cholesterol",
+        "TC",
+        "Total Chol"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        995
+      ]
+    },
+    {
+      "canonical_parameter_id": "ldl",
+      "display_name": "LDL Cholesterol",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 100
+      },
+      "aliases": [
+        "LDL Cholesterol",
+        "LDL-C",
+        "LDL",
+        "LDL Cholesterol - Direct"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        500
+      ]
+    },
+    {
+      "canonical_parameter_id": "hdl",
+      "display_name": "HDL Cholesterol",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "open_lower_bound",
+      "typical_reference_range": {
+        "low": 40,
+        "high": null
+      },
+      "aliases": [
+        "HDL Cholesterol",
+        "HDL-C",
+        "HDL",
+        "HDL Cholesterol - Direct"
+      ],
+      "plausible_range_for_validation": [
+        12,
+        null
+      ]
+    },
+    {
+      "canonical_parameter_id": "triglycerides",
+      "display_name": "Triglycerides",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 149.99
+      },
+      "aliases": [
+        "Triglycerides",
+        "TGL",
+        "TG"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        749.95
+      ]
+    },
+    {
+      "canonical_parameter_id": "vldl",
+      "display_name": "VLDL Cholesterol",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 5,
+        "high": 30
+      },
+      "aliases": [
+        "VLDL",
+        "VLDL Cholesterol"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        130
+      ]
+    },
+    {
+      "canonical_parameter_id": "non_hdl_cholesterol",
+      "display_name": "Non-HDL Cholesterol",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 130
+      },
+      "aliases": [
+        "Non-HDL Cholesterol",
+        "Non HDL Chol"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        650
+      ]
+    },
+    {
+      "canonical_parameter_id": "hdl_ldl_ratio",
+      "display_name": "HDL / LDL Ratio",
+      "category": "Lipid panel",
+      "canonical_unit": "ratio",
+      "range_type": "open_upper_bound",
+      "typical_reference_range": {
+        "low": 0.41,
+        "high": 9999
+      },
+      "aliases": [
+        "HDL / LDL Ratio",
+        "HDL/LDL Ratio"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        null
+      ]
+    },
+    {
+      "canonical_parameter_id": "tc_hdl_ratio",
+      "display_name": "Total Cholesterol / HDL Ratio",
+      "category": "Lipid panel",
+      "canonical_unit": "ratio",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 4.5
+      },
+      "aliases": [
+        "Cholesterol/HDL Ratio",
+        "TC/HDL Ratio"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        22.5
+      ]
+    },
+    {
+      "canonical_parameter_id": "lipoprotein_a",
+      "display_name": "Lipoprotein (a)",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 30
+      },
+      "aliases": [
+        "Lp(a)",
+        "Lipoprotein a"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        150
+      ]
+    },
+    {
+      "canonical_parameter_id": "sgpt_alt",
+      "display_name": "SGPT (ALT)",
+      "category": "Liver function",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.01,
+        "high": 45
+      },
+      "aliases": [
+        "SGPT",
+        "ALT",
+        "Alanine Aminotransferase",
+        "Alanine Transaminase (SGPT)"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        224.96
+      ]
+    },
+    {
+      "canonical_parameter_id": "sgot_ast",
+      "display_name": "SGOT (AST)",
+      "category": "Liver function",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.01,
+        "high": 35
+      },
+      "aliases": [
+        "SGOT",
+        "AST",
+        "Aspartate Aminotransferase",
+        "Aspartate Aminotransferase (SGOT)"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        174.96
+      ]
+    },
+    {
+      "canonical_parameter_id": "sgot_sgpt_ratio",
+      "display_name": "SGOT / SGPT Ratio",
+      "category": "Liver function",
+      "canonical_unit": "ratio",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.01,
+        "high": 2
+      },
+      "aliases": [
+        "SGOT / SGPT Ratio",
+        "AST/ALT Ratio"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        9.96
+      ]
+    },
+    {
+      "canonical_parameter_id": "alp",
+      "display_name": "Alkaline Phosphatase",
+      "category": "Liver function",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 40,
+        "high": 130
+      },
+      "aliases": [
+        "ALP",
+        "Alkaline Phosphatase"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        520
+      ]
+    },
+    {
+      "canonical_parameter_id": "ggt",
+      "display_name": "GGT",
+      "category": "Liver function",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 8,
+        "high": 61
+      },
+      "aliases": [
+        "GGT",
+        "Gamma GT",
+        "Gamma-Glutamyl Transferase"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        273
+      ]
+    },
+    {
+      "canonical_parameter_id": "bilirubin_total",
+      "display_name": "Total Bilirubin",
+      "category": "Liver function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.2,
+        "high": 1.2
+      },
+      "aliases": [
+        "Bilirubin Total",
+        "Total Bilirubin",
+        "T. Bilirubin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        6.2
+      ]
+    },
+    {
+      "canonical_parameter_id": "bilirubin_direct",
+      "display_name": "Direct Bilirubin",
+      "category": "Liver function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 0.3
+      },
+      "aliases": [
+        "Direct Bilirubin",
+        "Conjugated Bilirubin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.3
+      ]
+    },
+    {
+      "canonical_parameter_id": "bilirubin_indirect",
+      "display_name": "Indirect Bilirubin",
+      "category": "Liver function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.2,
+        "high": 0.8
+      },
+      "aliases": [
+        "Indirect Bilirubin",
+        "Unconjugated Bilirubin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.8
+      ]
+    },
+    {
+      "canonical_parameter_id": "total_protein",
+      "display_name": "Total Protein",
+      "category": "Liver function",
+      "canonical_unit": "g/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 6,
+        "high": 8.3
+      },
+      "aliases": [
+        "Total Protein",
+        "Serum Protein"
+      ],
+      "plausible_range_for_validation": [
+        1.4,
+        33.2
+      ]
+    },
+    {
+      "canonical_parameter_id": "albumin",
+      "display_name": "Albumin",
+      "category": "Liver function",
+      "canonical_unit": "g/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 3.5,
+        "high": 5
+      },
+      "aliases": [
+        "Albumin",
+        "Serum Albumin"
+      ],
+      "plausible_range_for_validation": [
+        0.5,
+        20
+      ]
+    },
+    {
+      "canonical_parameter_id": "globulin",
+      "display_name": "Globulin",
+      "category": "Liver function",
+      "canonical_unit": "g/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 2,
+        "high": 3.5
+      },
+      "aliases": [
+        "Globulin",
+        "Serum Globulin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        14
+      ]
+    },
+    {
+      "canonical_parameter_id": "ag_ratio",
+      "display_name": "A/G Ratio",
+      "category": "Liver function",
+      "canonical_unit": "ratio",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1,
+        "high": 2.2
+      },
+      "aliases": [
+        "A/G Ratio",
+        "Albumin/Globulin Ratio"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        8.8
+      ]
+    },
+    {
+      "canonical_parameter_id": "creatinine",
+      "display_name": "Serum Creatinine",
+      "category": "Kidney function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.6,
+        "high": 1.3
+      },
+      "aliases": [
+        "Creatinine",
+        "Serum Creatinine",
+        "Creat",
+        "Creatinine - Serum"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        6.3
+      ]
+    },
+    {
+      "canonical_parameter_id": "urea",
+      "display_name": "Blood Urea",
+      "category": "Kidney function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 7,
+        "high": 20
+      },
+      "aliases": [
+        "Urea",
+        "Blood Urea"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        80
+      ]
+    },
+    {
+      "canonical_parameter_id": "bun",
+      "display_name": "Blood Urea Nitrogen",
+      "category": "Kidney function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 6,
+        "high": 20
+      },
+      "aliases": [
+        "BUN",
+        "Blood Urea Nitrogen"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        80
+      ]
+    },
+    {
+      "canonical_parameter_id": "uric_acid",
+      "display_name": "Uric Acid",
+      "category": "Kidney function",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 3.5,
+        "high": 7.2
+      },
+      "aliases": [
+        "Uric Acid",
+        "Serum Uric Acid"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        28.8
+      ]
+    },
+    {
+      "canonical_parameter_id": "egfr",
+      "display_name": "eGFR",
+      "category": "Kidney function",
+      "canonical_unit": "mL/min/1.73m2",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 90,
+        "high": 999
+      },
+      "aliases": [
+        "eGFR",
+        "Estimated GFR"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        4635
+      ]
+    },
+    {
+      "canonical_parameter_id": "sodium",
+      "display_name": "Sodium",
+      "category": "Electrolytes",
+      "canonical_unit": "mEq/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 135,
+        "high": 145
+      },
+      "aliases": [
+        "Sodium",
+        "Na",
+        "Serum Sodium"
+      ],
+      "plausible_range_for_validation": [
+        40.5,
+        580
+      ]
+    },
+    {
+      "canonical_parameter_id": "potassium",
+      "display_name": "Potassium",
+      "category": "Electrolytes",
+      "canonical_unit": "mEq/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 3.5,
+        "high": 5.1
+      },
+      "aliases": [
+        "Potassium",
+        "K",
+        "Serum Potassium"
+      ],
+      "plausible_range_for_validation": [
+        0.3,
+        20.4
+      ]
+    },
+    {
+      "canonical_parameter_id": "chloride",
+      "display_name": "Chloride",
+      "category": "Electrolytes",
+      "canonical_unit": "mEq/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 98,
+        "high": 107
+      },
+      "aliases": [
+        "Chloride",
+        "Cl",
+        "Serum Chloride"
+      ],
+      "plausible_range_for_validation": [
+        29.4,
+        428
+      ]
+    },
+    {
+      "canonical_parameter_id": "calcium",
+      "display_name": "Calcium",
+      "category": "Electrolytes",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 8.6,
+        "high": 10.3
+      },
+      "aliases": [
+        "Calcium",
+        "Serum Calcium",
+        "Ca"
+      ],
+      "plausible_range_for_validation": [
+        2.58,
+        41.2
+      ]
+    },
+    {
+      "canonical_parameter_id": "phosphorus",
+      "display_name": "Phosphorus",
+      "category": "Electrolytes",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 2.5,
+        "high": 4.5
+      },
+      "aliases": [
+        "Phosphorus",
+        "Serum Phosphorus",
+        "Phosphate"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        18
+      ]
+    },
+    {
+      "canonical_parameter_id": "magnesium",
+      "display_name": "Magnesium",
+      "category": "Electrolytes",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1.7,
+        "high": 2.2
+      },
+      "aliases": [
+        "Magnesium",
+        "Serum Magnesium",
+        "Mg"
+      ],
+      "plausible_range_for_validation": [
+        0.51,
+        8.8
+      ]
+    },
+    {
+      "canonical_parameter_id": "tsh",
+      "display_name": "TSH",
+      "category": "Thyroid panel",
+      "canonical_unit": "mIU/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.4,
+        "high": 4
+      },
+      "aliases": [
+        "TSH",
+        "Thyroid Stimulating Hormone",
+        "TSH - Ultrasensitive",
+        "TSH Ultrasensitive"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        18.4
+      ]
+    },
+    {
+      "canonical_parameter_id": "free_t3",
+      "display_name": "Free T3",
+      "category": "Thyroid panel",
+      "canonical_unit": "pg/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 2.3,
+        "high": 4.2
+      },
+      "aliases": [
+        "Free T3",
+        "FT3"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        16.8
+      ]
+    },
+    {
+      "canonical_parameter_id": "free_t4",
+      "display_name": "Free T4",
+      "category": "Thyroid panel",
+      "canonical_unit": "ng/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.8,
+        "high": 1.8
+      },
+      "aliases": [
+        "Free T4",
+        "FT4"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        7.2
+      ]
+    },
+    {
+      "canonical_parameter_id": "total_t3",
+      "display_name": "Total T3",
+      "category": "Thyroid panel",
+      "canonical_unit": "ng/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 80,
+        "high": 200
+      },
+      "aliases": [
+        "Total T3",
+        "T3"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        800
+      ]
+    },
+    {
+      "canonical_parameter_id": "total_t4",
+      "display_name": "Total T4",
+      "category": "Thyroid panel",
+      "canonical_unit": "ug/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 5.1,
+        "high": 14.1
+      },
+      "aliases": [
+        "Total T4",
+        "T4"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        56.4
+      ]
+    },
+    {
+      "canonical_parameter_id": "vitamin_d",
+      "display_name": "Vitamin D",
+      "category": "Vitamins",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 30,
+        "high": 100
+      },
+      "aliases": [
+        "Vitamin D",
+        "25-OH Vitamin D",
+        "Vitamin D3",
+        "25 Hydroxy Vitamin D",
+        "Vitamin D Total"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        400
+      ]
+    },
+    {
+      "canonical_parameter_id": "vitamin_b12",
+      "display_name": "Vitamin B12",
+      "category": "Vitamins",
+      "canonical_unit": "pg/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 211,
+        "high": 911
+      },
+      "aliases": [
+        "Vitamin B12",
+        "B12",
+        "Cobalamin",
+        "Vitamin B-12"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        3711
+      ]
+    },
+    {
+      "canonical_parameter_id": "folate",
+      "display_name": "Folate",
+      "category": "Vitamins",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 3.1,
+        "high": 17.5
+      },
+      "aliases": [
+        "Folate",
+        "Folic Acid",
+        "Vitamin B9"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        75.1
+      ]
+    },
+    {
+      "canonical_parameter_id": "iron",
+      "display_name": "Serum Iron",
+      "category": "Iron studies",
+      "canonical_unit": "ug/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 65,
+        "high": 175
+      },
+      "aliases": [
+        "Iron",
+        "Serum Iron"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        700
+      ]
+    },
+    {
+      "canonical_parameter_id": "ferritin",
+      "display_name": "Ferritin",
+      "category": "Iron studies",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 24,
+        "high": 336
+      },
+      "aliases": [
+        "Ferritin",
+        "Serum Ferritin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        1584
+      ]
+    },
+    {
+      "canonical_parameter_id": "tibc",
+      "display_name": "TIBC",
+      "category": "Iron studies",
+      "canonical_unit": "ug/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 250,
+        "high": 450
+      },
+      "aliases": [
+        "TIBC",
+        "Total Iron Binding Capacity"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        1800
+      ]
+    },
+    {
+      "canonical_parameter_id": "transferrin_saturation",
+      "display_name": "Transferrin Saturation",
+      "category": "Iron studies",
+      "canonical_unit": "%",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 20,
+        "high": 50
+      },
+      "aliases": [
+        "Transferrin Saturation",
+        "TSAT"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        200
+      ]
+    },
+    {
+      "canonical_parameter_id": "troponin_i",
+      "display_name": "Troponin I",
+      "category": "Cardiac markers",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 0.04
+      },
+      "aliases": [
+        "Troponin I",
+        "Trop I",
+        "cTnI"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        5.04
+      ]
+    },
+    {
+      "canonical_parameter_id": "cpk",
+      "display_name": "CPK",
+      "category": "Cardiac markers",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 30,
+        "high": 200
+      },
+      "aliases": [
+        "CPK",
+        "Creatine Phosphokinase",
+        "CK"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        880
+      ]
+    },
+    {
+      "canonical_parameter_id": "cpk_mb",
+      "display_name": "CPK-MB",
+      "category": "Cardiac markers",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 5
+      },
+      "aliases": [
+        "CPK-MB",
+        "CK-MB"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        25
+      ]
+    },
+    {
+      "canonical_parameter_id": "homocysteine",
+      "display_name": "Homocysteine",
+      "category": "Cardiac markers",
+      "canonical_unit": "umol/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 5,
+        "high": 15
+      },
+      "aliases": [
+        "Homocysteine"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        60
+      ]
+    },
+    {
+      "canonical_parameter_id": "hs_crp",
+      "display_name": "hs-CRP",
+      "category": "Inflammatory markers",
+      "canonical_unit": "mg/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 3
+      },
+      "aliases": [
+        "hs-CRP",
+        "High Sensitivity CRP",
+        "CRP"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        15
+      ]
+    },
+    {
+      "canonical_parameter_id": "rheumatoid_factor",
+      "display_name": "Rheumatoid Factor",
+      "category": "Inflammatory markers",
+      "canonical_unit": "IU/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 14
+      },
+      "aliases": [
+        "RA Factor",
+        "Rheumatoid Factor",
+        "RF"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        70
+      ]
+    },
+    {
+      "canonical_parameter_id": "pt",
+      "display_name": "Prothrombin Time",
+      "category": "Coagulation",
+      "canonical_unit": "seconds",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 11,
+        "high": 13.5
+      },
+      "aliases": [
+        "PT",
+        "Prothrombin Time"
+      ],
+      "plausible_range_for_validation": [
+        3.3,
+        54
+      ]
+    },
+    {
+      "canonical_parameter_id": "inr",
+      "display_name": "INR",
+      "category": "Coagulation",
+      "canonical_unit": "ratio",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0.8,
+        "high": 1.1
+      },
+      "aliases": [
+        "INR",
+        "International Normalized Ratio"
+      ],
+      "plausible_range_for_validation": [
+        0.2,
+        6.1
+      ]
+    },
+    {
+      "canonical_parameter_id": "aptt",
+      "display_name": "APTT",
+      "category": "Coagulation",
+      "canonical_unit": "seconds",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 25,
+        "high": 35
+      },
+      "aliases": [
+        "APTT",
+        "Activated Partial Thromboplastin Time"
+      ],
+      "plausible_range_for_validation": [
+        5,
+        140
+      ]
+    },
+    {
+      "canonical_parameter_id": "urine_ph",
+      "display_name": "Urine pH",
+      "category": "Urine routine",
+      "canonical_unit": "pH",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 4.5,
+        "high": 8
+      },
+      "aliases": [
+        "Urine pH",
+        "pH"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        32
+      ]
+    },
+    {
+      "canonical_parameter_id": "urine_specific_gravity",
+      "display_name": "Urine Specific Gravity",
+      "category": "Urine routine",
+      "canonical_unit": "unitless",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1.005,
+        "high": 1.03
+      },
+      "aliases": [
+        "Specific Gravity",
+        "Urine Specific Gravity"
+      ],
+      "plausible_range_for_validation": [
+        0.3,
+        6.03
+      ]
+    },
+    {
+      "canonical_parameter_id": "urine_protein",
+      "display_name": "Urine Protein",
+      "category": "Urine routine",
+      "canonical_unit": "qualitative",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "Urine Protein",
+        "Protein (Urine)"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "urine_glucose",
+      "display_name": "Urine Glucose",
+      "category": "Urine routine",
+      "canonical_unit": "qualitative",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "Urine Glucose",
+        "Glucose (Urine)"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "urine_microalbumin",
+      "display_name": "Urine Microalbumin",
+      "category": "Urine routine",
+      "canonical_unit": "mg/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 30
+      },
+      "aliases": [
+        "Microalbumin",
+        "Urine Microalbumin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        150
+      ]
+    },
+    {
+      "canonical_parameter_id": "testosterone_total",
+      "display_name": "Total Testosterone",
+      "category": "Hormones",
+      "canonical_unit": "ng/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 264,
+        "high": 916
+      },
+      "aliases": [
+        "Testosterone",
+        "Total Testosterone"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        3664
+      ]
+    },
+    {
+      "canonical_parameter_id": "cortisol",
+      "display_name": "Cortisol",
+      "category": "Hormones",
+      "canonical_unit": "ug/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 6.2,
+        "high": 19.4
+      },
+      "aliases": [
+        "Cortisol",
+        "Serum Cortisol"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        77.6
+      ]
+    },
+    {
+      "canonical_parameter_id": "estradiol",
+      "display_name": "Estradiol",
+      "category": "Hormones",
+      "canonical_unit": "pg/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 12,
+        "high": 166
+      },
+      "aliases": [
+        "Estradiol",
+        "E2"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        782
+      ]
+    },
+    {
+      "canonical_parameter_id": "prolactin",
+      "display_name": "Prolactin",
+      "category": "Hormones",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 4.8,
+        "high": 23.3
+      },
+      "aliases": [
+        "Prolactin",
+        "PRL"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        97.3
+      ]
+    },
+    {
+      "canonical_parameter_id": "hbsag",
+      "display_name": "HBsAg",
+      "category": "Serology",
+      "canonical_unit": "qualitative",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "HBsAg",
+        "Hepatitis B Surface Antigen"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "anti_hcv",
+      "display_name": "Anti-HCV",
+      "category": "Serology",
+      "canonical_unit": "qualitative",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "Anti-HCV",
+        "Hepatitis C Antibody"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "hiv_screen",
+      "display_name": "HIV Ag/Ab",
+      "category": "Serology",
+      "canonical_unit": "qualitative",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "HIV",
+        "HIV Ag/Ab Combo",
+        "HIV I & II Antibody"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "widal",
+      "display_name": "Widal Test",
+      "category": "Serology",
+      "canonical_unit": "titer",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "Widal",
+        "Widal Test"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "vdrl",
+      "display_name": "VDRL / RPR",
+      "category": "Serology",
+      "canonical_unit": "qualitative",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "VDRL",
+        "RPR"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "psa",
+      "display_name": "PSA (Total)",
+      "category": "Cancer markers",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 4
+      },
+      "aliases": [
+        "PSA",
+        "Prostate Specific Antigen",
+        "Total PSA"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        20
+      ]
+    },
+    {
+      "canonical_parameter_id": "ca125",
+      "display_name": "CA-125",
+      "category": "Cancer markers",
+      "canonical_unit": "U/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 35
+      },
+      "aliases": [
+        "CA-125",
+        "CA 125"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        175
+      ]
+    },
+    {
+      "canonical_parameter_id": "cea",
+      "display_name": "CEA",
+      "category": "Cancer markers",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 3
+      },
+      "aliases": [
+        "CEA",
+        "Carcinoembryonic Antigen"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        15
+      ]
+    },
+    {
+      "canonical_parameter_id": "afp",
+      "display_name": "AFP",
+      "category": "Cancer markers",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 10
+      },
+      "aliases": [
+        "AFP",
+        "Alpha-Fetoprotein"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        50
+      ]
+    },
+    {
+      "canonical_parameter_id": "amylase",
+      "display_name": "Amylase",
+      "category": "Pancreatic function",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 28,
+        "high": 100
+      },
+      "aliases": [
+        "Amylase",
+        "Serum Amylase"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        400
+      ]
+    },
+    {
+      "canonical_parameter_id": "lipase",
+      "display_name": "Lipase",
+      "category": "Pancreatic function",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 13,
+        "high": 60
+      },
+      "aliases": [
+        "Lipase",
+        "Serum Lipase"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        248
+      ]
+    },
+    {
+      "canonical_parameter_id": "d_dimer",
+      "display_name": "D-Dimer",
+      "category": "Coagulation",
+      "canonical_unit": "ng/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 500
+      },
+      "aliases": [
+        "D-Dimer",
+        "D Dimer"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        2500
+      ]
+    },
+    {
+      "canonical_parameter_id": "ana_titer",
+      "display_name": "ANA (Antinuclear Antibody)",
+      "category": "Inflammatory markers",
+      "canonical_unit": "titer",
+      "range_type": "qualitative",
+      "typical_reference_range": null,
+      "aliases": [
+        "ANA",
+        "Antinuclear Antibody",
+        "ANA Titer"
+      ],
+      "plausible_range_for_validation": null
+    },
+    {
+      "canonical_parameter_id": "anti_tpo",
+      "display_name": "Anti-TPO Antibody",
+      "category": "Thyroid panel",
+      "canonical_unit": "IU/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 34
+      },
+      "aliases": [
+        "Anti-TPO",
+        "Anti-Thyroid Peroxidase Antibody",
+        "Anti-TPO Antibody"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        170
+      ]
+    },
+    {
+      "canonical_parameter_id": "lh",
+      "display_name": "LH (Luteinizing Hormone)",
+      "category": "Hormones",
+      "canonical_unit": "IU/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1.09,
+        "high": 17.2
+      },
+      "aliases": [
+        "LH",
+        "Luteinizing Hormone"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        81.64
+      ]
+    },
+    {
+      "canonical_parameter_id": "fsh",
+      "display_name": "FSH (Follicle-Stimulating Hormone)",
+      "category": "Hormones",
+      "canonical_unit": "IU/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 1.37,
+        "high": 15.4
+      },
+      "aliases": [
+        "FSH",
+        "Follicle Stimulating Hormone"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        71.52
+      ]
+    },
+    {
+      "canonical_parameter_id": "beta_hcg",
+      "display_name": "Beta-hCG",
+      "category": "Hormones",
+      "canonical_unit": "U/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 7
+      },
+      "aliases": [
+        "Beta hCG",
+        "Beta-hCG",
+        "Human Chorionic Gonadotropin"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        35
+      ]
+    },
+    {
+      "canonical_parameter_id": "bnp",
+      "display_name": "BNP (B-type Natriuretic Peptide)",
+      "category": "Cardiac markers",
+      "canonical_unit": "pg/mL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 0,
+        "high": 100
+      },
+      "aliases": [
+        "BNP",
+        "B-type Natriuretic Peptide",
+        "NT-proBNP"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        500
+      ]
+    },
+    {
+      "canonical_parameter_id": "ammonia",
+      "display_name": "Ammonia",
+      "category": "Liver function",
+      "canonical_unit": "umol/L",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 11,
+        "high": 35
+      },
+      "aliases": [
+        "Ammonia",
+        "Plasma Ammonia"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        140
+      ]
+    }
+  ]
+}

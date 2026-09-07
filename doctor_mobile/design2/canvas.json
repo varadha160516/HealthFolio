@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Liquid Glass — Home" },
+    { "file": "LiquidGlassPatient.dc.html", "x": 470, "y": 0, "w": 390, "h": 844, "title": "Liquid Glass — Patient Snapshot" },
+    { "file": "ClayHome.dc.html", "x": 0, "y": 960, "w": 390, "h": 844, "title": "Claymorphism — Home" },
+    { "file": "ClayPatient.dc.html", "x": 470, "y": 960, "w": 390, "h": 844, "title": "Claymorphism — Patient Snapshot" },
+    { "file": "NeuHome.dc.html", "x": 0, "y": 1920, "w": 390, "h": 844, "title": "Neumorphism — Home" },
+    { "file": "NeuPatient.dc.html", "x": 470, "y": 1920, "w": 390, "h": 844, "title": "Neumorphism — Patient Snapshot" },
+    { "file": "FlatHome.dc.html", "x": 0, "y": 2880, "w": 390, "h": 844, "title": "Flat / Bento — Home" },
+    { "file": "FlatPatient.dc.html", "x": 470, "y": 2880, "w": 390, "h": 844, "title": "Flat / Bento — Patient Snapshot" }
+  ],
+  "launch": { "view": "canvas" }
+}

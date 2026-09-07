@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "careloop-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=web"],
+      "port": 5173
+    },
+    {
+      "name": "careloop-mobile-web-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "C:\\Users\\varad\\CareLoop\\mobile\\build\\web"],
+      "port": 8765
+    }
+  ]
+}

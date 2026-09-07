@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+    a { color: #4F63E0; } a:hover { color: #3548C4; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #FAFAFC; display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="padding: 22px 18px 0; display: flex; align-items: center; gap: 14px;">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#17182B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <span style="font-size: 17px; font-weight: 800; color: #17182B;">Patient snapshot</span>
+  </div>
+
+  <div style="flex: 1; padding: 20px 18px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+
+    <div style="padding: 16px; border-radius: 18px; background: #FFFFFF; border: 1.5px solid #E7E7EE; display: flex; align-items: center; gap: 14px;">
+      <div style="width: 54px; height: 54px; border-radius: 16px; background: #4F63E0; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <span style="color: #FFFFFF; font-weight: 800; font-size: 17px;">MI</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 19px; font-weight: 800; color: #17182B; letter-spacing: -0.2px;">Meera Iyer</span>
+        <div style="display: flex; gap: 7px;">
+          <div style="padding: 3px 9px; border-radius: 7px; background: #E1E7FB;"><span style="font-size: 10.5px; font-weight: 800; color: #3548C4;">34F</span></div>
+          <div style="padding: 3px 9px; border-radius: 7px; background: #FFD6E8;"><span style="font-size: 10.5px; font-weight: 800; color: #7A2F52;">O+</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1.5px solid #E7E7EE; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 7px;">
+      <span style="font-size: 10px; color: #B0B0C0; font-weight: 800; letter-spacing: 0.4px;">TODAY'S REASON</span>
+      <span style="font-size: 13.5px; font-weight: 700; color: #17182B;">Follow-up: recurring migraine, worse in the evenings</span>
+    </div>
+
+    <div style="background: #FFD6E8; border: 1.5px solid #F5AFC9; border-radius: 18px; padding: 14px; display: flex; align-items: center; gap: 10px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7A2F52" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      <span style="font-size: 13.5px; font-weight: 800; color: #7A2F52;">Allergy: Sulfonamides</span>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1.5px solid #E7E7EE; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 11px;">
+      <span style="font-size: 14.5px; font-weight: 800; color: #17182B;">Allergies &amp; conditions</span>
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div><span style="font-size: 12.5px; color: #9092A6; font-weight: 700;">Allergies: </span><span style="font-size: 12.5px; color: #17182B; font-weight: 600;">Sulfonamides</span></div>
+        <div><span style="font-size: 12.5px; color: #9092A6; font-weight: 700;">Chronic conditions: </span><span style="font-size: 12.5px; color: #17182B; font-weight: 600;">Migraine, hypothyroidism</span></div>
+        <div><span style="font-size: 12.5px; color: #9092A6; font-weight: 700;">Current medications: </span><span style="font-size: 12.5px; color: #17182B; font-weight: 600;">Levothyroxine 50mcg</span></div>
+      </div>
+    </div>
+
+    <div style="flex: 1;"></div>
+
+    <div style="width: 100%; padding: 16px; border-radius: 14px; background: #4F63E0; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+      <span style="color: #FFFFFF; font-weight: 800; font-size: 15px;">Start Consultation</span>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

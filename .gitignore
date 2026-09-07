@@ -1,0 +1,41 @@
+node_modules/
+dist/
+server/data/
+server/uploads/
+*.sqlite
+*.sqlite-*
+.env
+.env.local
+
+# Android build outputs (keep the generated project itself, ignore build artifacts)
+web/android/app/build/
+web/android/build/
+web/android/.gradle/
+web/android/captures/
+web/android/local.properties
+web/android/*.iml
+web/android/.idea/
+
+# Flutter app build outputs
+mobile/build/
+mobile/.dart_tool/
+mobile/.gradle/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/local.properties
+mobile/android/*.iml
+mobile/*.iml
+mobile/.idea/
+mobile_src/
+
+# Doctor Console app build outputs
+doctor_mobile/build/
+doctor_mobile/.dart_tool/
+doctor_mobile/.gradle/
+doctor_mobile/android/.gradle/
+doctor_mobile/android/app/build/
+doctor_mobile/android/build/
+doctor_mobile/android/local.properties
+doctor_mobile/*.iml
+doctor_mobile/.idea/

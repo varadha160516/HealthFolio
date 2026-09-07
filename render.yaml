@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: careloop-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: starter
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PORT
+        value: 4000
+      - key: CARELOOP_DB_PATH
+        value: /data/careloop.sqlite
+      - key: CARELOOP_UPLOADS_DIR
+        value: /data/uploads
+    disk:
+      name: careloop-data
+      mountPath: /data
+      sizeGB: 1

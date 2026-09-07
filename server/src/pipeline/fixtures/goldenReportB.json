@@ -1,0 +1,29 @@
+{
+  "_comment": "Synthetic stand-in for the PharmEasy/Docon/Thyrocare Hemogram + 'Health Trends' report (Section 4.1): columns Test Name | Methodology | Value | Units | Bio. Ref. Interval on page 1, plus a chart-infographic trends page with no table structure at all. Note PDW's printed range (9.6-15.2) deliberately differs from Report A's (9-17) — Section 4.6's point that a printed range always wins over any other source, including another report for the same parameter.",
+  "patient_name_hint": "Priya Sharma",
+  "presentation_style": "chart_infographic",
+  "lab_visit_id": "DOC-55821-B",
+  "test_date": "2025-11-10",
+  "ordering_lab_name": "Docon Diagnostics / Thyrocare",
+  "tuples": [
+    { "label_as_printed": "Hemoglobin", "value": "12.8", "unit": "g/dL", "printed_reference_range": { "low": 12, "high": 15 }, "extraction_confidence": 0.97 },
+    { "label_as_printed": "Hematocrit (PCV)", "value": "38.7", "unit": "%", "printed_reference_range": { "low": 36, "high": 46 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "RBC", "value": "4.4", "unit": "x10^6/uL", "printed_reference_range": { "low": 4.2, "high": 5.4 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "MCV", "value": "88.0", "unit": "fL", "printed_reference_range": { "low": 83, "high": 101 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "MCH", "value": "29.1", "unit": "pg", "printed_reference_range": { "low": 27, "high": 32 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "MCHC", "value": "33.0", "unit": "g/dL", "printed_reference_range": { "low": 31.5, "high": 34.5 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "RDW SD", "value": "41.2", "unit": "fL", "printed_reference_range": { "low": 39, "high": 46 }, "extraction_confidence": 0.93 },
+    { "label_as_printed": "RDW CV", "value": "13.0", "unit": "%", "printed_reference_range": { "low": 11.5, "high": 14 }, "extraction_confidence": 0.94 },
+    { "label_as_printed": "Total WBC Count", "value": "6.5", "unit": "x10^3/uL", "printed_reference_range": { "low": 4, "high": 10 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "Platelets", "value": "275", "unit": "x10^3/uL", "printed_reference_range": { "low": 150, "high": 410 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "PDW", "value": "11.0", "unit": "fL", "printed_reference_range": { "low": 9.6, "high": 15.2 }, "extraction_confidence": 0.93 },
+    { "label_as_printed": "P-LCR", "value": "28.5", "unit": "%", "printed_reference_range": { "low": 19.7, "high": 42.4 }, "extraction_confidence": 0.9 },
+    { "label_as_printed": "Absolute Neutrophil Count", "value": "3.9", "unit": "x10^3/uL", "printed_reference_range": { "low": 2, "high": 7 }, "extraction_confidence": 0.93 },
+    { "label_as_printed": "Absolute Lymphocyte Count", "value": "2.1", "unit": "x10^3/uL", "printed_reference_range": { "low": 1, "high": 3 }, "extraction_confidence": 0.93 },
+    { "label_as_printed": "Vitamin D", "value": "22", "unit": "ng/mL", "printed_reference_range": { "low": 30, "high": 100 }, "extraction_confidence": 0.82 },
+    { "label_as_printed": "Protein (Urine)", "value": "Nil", "unit": "qualitative", "printed_reference_range": null, "extraction_confidence": 0.9 },
+    { "label_as_printed": "HBsAg", "value": "Non-Reactive", "unit": "qualitative", "printed_reference_range": null, "extraction_confidence": 0.9 },
+    { "label_as_printed": "S. Creatinine", "value": "0.7", "unit": "mg/dL", "printed_reference_range": { "low": 0.6, "high": 1.1 }, "extraction_confidence": 0.9 },
+    { "label_as_printed": "Ret Count", "value": "1.2", "unit": "%", "printed_reference_range": null, "extraction_confidence": 0.8 }
+  ]
+}

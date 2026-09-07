@@ -1,0 +1,31 @@
+{
+  "_comment": "Synthetic stand-in for the Tata 1mg-style CBC report the PRD validates against (Section 4.1): columns Test Name | Result | Unit | Bio. Ref. Interval | Method. NABL/QR badges, disclaimers and signature blocks were present on the source page but are NOISE, already excluded here — extraction only returns DATA tuples.",
+  "patient_name_hint": "Rohan Sharma",
+  "presentation_style": "tabular",
+  "lab_visit_id": "TML-88213",
+  "test_date": "2025-11-03",
+  "ordering_lab_name": "Tata 1mg Labs",
+  "tuples": [
+    { "label_as_printed": "Hemoglobin", "value": "14.2", "unit": "g/dL", "printed_reference_range": { "low": 13, "high": 17 }, "extraction_confidence": 0.97 },
+    { "label_as_printed": "Total RBC", "value": "5.1", "unit": "x10^6/uL", "printed_reference_range": { "low": 4.5, "high": 5.5 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "HCT", "value": "42.5", "unit": "%", "printed_reference_range": { "low": 40, "high": 50 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "MCV", "value": "88", "unit": "fL", "printed_reference_range": { "low": 83, "high": 101 }, "extraction_confidence": 0.97 },
+    { "label_as_printed": "MCH", "value": "29", "unit": "pg", "printed_reference_range": { "low": 27, "high": 32 }, "extraction_confidence": 0.97 },
+    { "label_as_printed": "Mean Corp.Hemo. Conc", "value": "33.1", "unit": "g/dL", "printed_reference_range": { "low": 31.5, "high": 34.5 }, "extraction_confidence": 0.93 },
+    { "label_as_printed": "RDW-CV", "value": "13.2", "unit": "%", "printed_reference_range": { "low": 11.5, "high": 14 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "Total Leucocyte Count (WBC)", "value": "7.2", "unit": "x10^3/uL", "printed_reference_range": { "low": 4, "high": 10 }, "extraction_confidence": 0.96 },
+    { "label_as_printed": "Neutrophils", "value": "58", "unit": "%", "printed_reference_range": { "low": 40, "high": 80 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "Lymphocytes", "value": "32", "unit": "%", "printed_reference_range": { "low": 20, "high": 40 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "Monocytes", "value": "6", "unit": "%", "printed_reference_range": { "low": 2, "high": 10 }, "extraction_confidence": 0.94 },
+    { "label_as_printed": "Eosinophils", "value": "3", "unit": "%", "printed_reference_range": { "low": 1, "high": 6 }, "extraction_confidence": 0.94 },
+    { "label_as_printed": "Basophils", "value": "1", "unit": "%", "printed_reference_range": { "low": 0, "high": 2 }, "extraction_confidence": 0.93 },
+    { "label_as_printed": "Platelet Count", "value": "250", "unit": "x10^3/uL", "printed_reference_range": { "low": 150, "high": 410 }, "extraction_confidence": 0.97 },
+    { "label_as_printed": "PDW", "value": "12.5", "unit": "fL", "printed_reference_range": { "low": 9, "high": 17 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "MPV", "value": "9.8", "unit": "fL", "printed_reference_range": { "low": 6.5, "high": 12 }, "extraction_confidence": 0.95 },
+    { "label_as_printed": "ESR", "value": "8", "unit": "mm/hr", "printed_reference_range": { "low": 0, "high": 20 }, "extraction_confidence": 0.94 },
+    { "label_as_printed": "RDWI", "value": "215", "unit": "unitless", "printed_reference_range": { "low": null, "high": null, "text": "*Refer Note below" }, "extraction_confidence": 0.88 },
+    { "label_as_printed": "Mentzer Index", "value": "17.3", "unit": "unitless", "printed_reference_range": { "low": null, "high": null, "text": "*Refer Note below" }, "extraction_confidence": 0.88 },
+    { "label_as_printed": "Sr. Creatinine", "value": "0.9", "unit": "mg/dL", "printed_reference_range": { "low": 0.6, "high": 1.3 }, "extraction_confidence": 0.92 },
+    { "label_as_printed": "NLR (Neutrophil-Lymphocyte Ratio)", "value": "1.8", "unit": "unitless", "printed_reference_range": null, "extraction_confidence": 0.85 }
+  ]
+}
