@@ -30,7 +30,7 @@ labTestsRouter.get('/lab-tests/catalog', requireAuth, (_req, res) => {
 
 // All bookings (member + guest) for the signed-in family — the Lab Tests home tab's own list.
 labTestsRouter.get('/family/lab-test-bookings', requireAuth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM lab_test_bookings WHERE family_id = ? ORDER BY created_at DESC').all(req.session.familyId) as any[];
+  const rows = db.prepare('SELECT * FROM lab_test_bookings WHERE family_id = ? ORDER BY created_at DESC').all(req.session!.familyId) as any[];
   res.json(rows.map(parseBooking));
 });
 
@@ -57,7 +57,7 @@ labTestsRouter.post('/lab-test-bookings', requireAuth, (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'collection_scheduled', ?, ?, ?)`
   ).run(
     id,
-    req.session.familyId,
+    req.session!.familyId,
     member_id ?? null,
     guest_name ?? null,
     guest_age ?? null,
