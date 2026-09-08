@@ -4,17 +4,14 @@ services:
     runtime: docker
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
-    plan: starter
+    plan: free
+    # Free plan has no persistent disk -- CARELOOP_DB_PATH/CARELOOP_UPLOADS_DIR are left unset so
+    # the app falls back to its own in-container relative paths (server/db.ts, routes/documents.ts),
+    # which self-create on boot. That data does NOT survive a redeploy or a sleep/wake cycle (free
+    # web services sleep after 15 min idle) -- the DB reseeds from scratch each time. Fine for a
+    # demo/free deployment; move to a paid plan + disk if that stops being fine.
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: PORT
         value: 4000
-      - key: CARELOOP_DB_PATH
-        value: /data/careloop.sqlite
-      - key: CARELOOP_UPLOADS_DIR
-        value: /data/uploads
-    disk:
-      name: careloop-data
-      mountPath: /data
-      sizeGB: 1
