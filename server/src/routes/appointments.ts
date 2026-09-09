@@ -24,6 +24,7 @@ function mapDoctorFrequencyToTimes(frequencyText: string | null | undefined): st
   if (f.includes('afternoon')) slots.push('13:00');
   if (f.includes('evening')) slots.push('18:00');
   if (f.includes('night')) slots.push('21:00');
+  if (f.includes('bedtime')) slots.push('23:00');
   return slots.length > 0 ? slots : ['08:00'];
 }
 
@@ -360,10 +361,23 @@ appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireR
   const { diagnosis_text, icd_code, notes, line_items } = req.body ?? {};
   if (!Array.isArray(line_items) || line_items.length === 0) return res.status(400).json({ error: 'line_items is required' });
 
+  const provider = db.prepare('SELECT name FROM providers WHERE id = ?').get(appt.provider_id) as { name: string } | undefined;
+
+  // Also files this prescription into the member's Documents tab (document_type='prescription',
+  // origin='provider_issued'), the same category member-uploaded prescription photos land in --
+  // just with no actual file (page_count 0, a non-existent storage_path so GET .../pages resolves
+  // to [] and DocumentViewerScreen falls back to its "no original file" state and renders the
+  // line items table instead, exactly as it already does for a member's own uploaded prescription).
+  const documentId = uuid();
+  db.prepare(
+    `INSERT INTO documents (id, member_id, uploaded_by_user_id, document_type, storage_path, checksum, page_count, upload_date, source_lab_name, status, origin, created_at)
+     VALUES (?, ?, ?, 'prescription', 'provider-issued', ?, 0, ?, ?, 'parsed', 'provider_issued', ?)`
+  ).run(documentId, appt.member_id, req.session!.userId, documentId, now(), provider?.name ?? null, now());
+
   const prescriptionId = uuid();
   db.prepare(
-    `INSERT INTO prescriptions (id, appointment_id, provider_id, member_id, diagnosis_text, icd_code, notes, issued_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(prescriptionId, appt.id, appt.provider_id, appt.member_id, diagnosis_text ?? null, icd_code ?? null, notes ?? null, now());
+    `INSERT INTO prescriptions (id, appointment_id, provider_id, member_id, document_id, diagnosis_text, icd_code, notes, issued_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(prescriptionId, appt.id, appt.provider_id, appt.member_id, documentId, diagnosis_text ?? null, icd_code ?? null, notes ?? null, now());
   const insertLine = db.prepare(
     `INSERT INTO prescription_line_items (id, prescription_id, medicine_name, strength, dosage, frequency, duration, instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
@@ -372,7 +386,6 @@ appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireR
        (id, member_id, prescription_line_item_id, medicine_name, strength, dose_amount, frequency, times, day_of_week, start_date, end_date, prescribed_by, purpose, status, created_at)
      VALUES (?, ?, ?, ?, ?, ?, 'daily', ?, NULL, ?, ?, ?, ?, 'active', ?)`
   );
-  const provider = db.prepare('SELECT name FROM providers WHERE id = ?').get(appt.provider_id) as { name: string } | undefined;
   const startDate = now().slice(0, 10);
   for (const item of line_items) {
     const lineItemId = uuid();

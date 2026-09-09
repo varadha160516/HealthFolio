@@ -7,6 +7,8 @@ const _kFrequencyPresets = <(String, String, List<String>)>[
   ('Once daily', 'daily', ['08:00']),
   ('Twice daily', 'daily', ['08:00', '20:00']),
   ('Three times daily', 'daily', ['08:00', '14:00', '20:00']),
+  ('Four times daily', 'daily', ['08:00', '13:00', '18:00', '21:00']),
+  ('Five times daily', 'daily', ['08:00', '13:00', '18:00', '21:00', '23:00']),
   ('Weekly', 'weekly', ['20:00']),
   ('As needed', 'as_needed', []),
 ];

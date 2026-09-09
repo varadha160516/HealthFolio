@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../auth_provider.dart';
 import 'tabs/profile_tab.dart';
 import 'tabs/overview_tab.dart';
 import 'tabs/vitals_tab.dart';
@@ -140,6 +142,29 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
     }
   }
 
+  Future<void> _confirmArchive() async {
+    final name = widget.member['name'] as String? ?? 'this member';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Archive this member?'),
+        content: Text('$name will be hidden from your family list. Nothing about them is deleted — every document and result stays intact, and you can restore them anytime.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: careloopDanger),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final api = context.read<AuthProvider>().api;
+    await api.archiveMember(widget.member['id'] as String);
+    if (mounted) Navigator.of(context).pop();
+  }
+
   int? _age(String? dob) {
     if (dob == null) return null;
     final d = DateTime.tryParse(dob);
@@ -178,9 +203,15 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
             onSelected: (choice) {
               if (choice == 'audit_log') {
                 Navigator.of(context).push(pushRoute(AuditLogScreen(memberId: memberId)));
+              } else if (choice == 'archive') {
+                _confirmArchive();
               }
             },
-            itemBuilder: (_) => const [PopupMenuItem(value: 'audit_log', child: Text('Audit Log'))],
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'audit_log', child: Text('Audit Log')),
+              if (widget.member['relationship_to_primary'] != 'self')
+                const PopupMenuItem(value: 'archive', child: Text('Archive member')),
+            ],
           ),
         ],
       ),

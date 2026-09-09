@@ -105,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(scrollDirection: Axis.horizontal, children: [
               _FilterChip(label: 'All', selected: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
               _FilterChip(label: 'Upcoming', selected: _filter == 'upcoming', onTap: () => setState(() => _filter = 'upcoming')),
-              _FilterChip(label: 'Waiting', selected: _filter == 'waiting', onTap: () => setState(() => _filter = 'waiting')),
               _FilterChip(label: 'Completed', selected: _filter == 'completed', onTap: () => setState(() => _filter = 'completed')),
               _FilterChip(label: 'Follow-ups', selected: _filter == 'followups', onTap: () => setState(() => _filter = 'followups')),
             ]),

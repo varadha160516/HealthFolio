@@ -648,9 +648,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       );
 }
 
-const _kTimesOfDay = ['Morning', 'Afternoon', 'Evening', 'Night'];
+const _kTimesOfDay = ['Morning', 'Afternoon', 'Evening', 'Night', 'Bedtime'];
 
-/// Small dot row showing which of the four times-of-day a medicine's frequency covers — parsed
+/// Small dot row showing which of the five times-of-day a medicine's frequency covers — parsed
 /// back out of the composed "Morning, Night" string rather than kept as a separate field, since
 /// the backend only has one frequency text column to store it in.
 Widget medicationTimeDots(String? frequency) {

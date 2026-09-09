@@ -67,7 +67,6 @@ class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
             child: ListView(scrollDirection: Axis.horizontal, children: [
               _Chip(label: 'All', selected: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
               _Chip(label: 'Upcoming', selected: _filter == 'upcoming', onTap: () => setState(() => _filter = 'upcoming')),
-              _Chip(label: 'Waiting', selected: _filter == 'waiting', onTap: () => setState(() => _filter = 'waiting')),
               _Chip(label: 'Completed', selected: _filter == 'completed', onTap: () => setState(() => _filter = 'completed')),
               _Chip(label: 'Follow-ups', selected: _filter == 'followups', onTap: () => setState(() => _filter = 'followups')),
             ]),

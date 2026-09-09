@@ -83,29 +83,6 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     }
   }
 
-  Future<void> _confirmArchive(Map<String, dynamic> member) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Archive this member?'),
-        content: Text('${member['name']} will be hidden from your family list. Nothing about them is deleted — every document and result stays intact, and you can restore them anytime.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: careloopDanger),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Archive'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    final api = context.read<AuthProvider>().api;
-    await api.archiveMember(member['id'] as String);
-    _load();
-    if (_showArchived) _loadArchived();
-  }
-
   Future<void> _restore(Map<String, dynamic> member) async {
     final api = context.read<AuthProvider>().api;
     await api.restoreMember(member['id'] as String);
@@ -292,9 +269,10 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 // member navigates back, not whenever this screen next happens to reload.
                 onTap: () async {
                   await Navigator.push(context, pushRoute(MemberProfileScreen(member: m)));
-                  if (mounted) _load();
+                  if (!mounted) return;
+                  _load();
+                  if (_showArchived) _loadArchived();
                 },
-                onArchive: m['relationship_to_primary'] == 'self' ? null : () => _confirmArchive(m),
               ),
             ),
           const SizedBox(height: 4),
@@ -399,8 +377,7 @@ class _MemberCard extends StatelessWidget {
   final String initials;
   final Color cardColor;
   final VoidCallback onTap;
-  final VoidCallback? onArchive;
-  const _MemberCard({required this.member, required this.age, required this.initials, required this.cardColor, required this.onTap, this.onArchive});
+  const _MemberCard({required this.member, required this.age, required this.initials, required this.cardColor, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -441,12 +418,6 @@ class _MemberCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onArchive != null)
-                IconButton(
-                  tooltip: 'Archive ${member['name'] ?? 'member'}',
-                  icon: const Icon(Icons.archive_outlined, color: careloopMutedDim, size: 20),
-                  onPressed: onArchive,
-                ),
               const Icon(Icons.chevron_right_rounded, color: careloopMuted),
             ]),
           ),

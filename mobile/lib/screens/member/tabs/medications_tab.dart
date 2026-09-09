@@ -165,17 +165,6 @@ class _MedicationsTabState extends State<MedicationsTab> {
               ),
           ],
           const SizedBox(height: 8),
-          InkWell(
-            onTap: _openAdd,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Row(children: [
-                Icon(Icons.add_rounded, size: 16, color: careloopAccent),
-                SizedBox(width: 6),
-                Text('Add medication', style: TextStyle(color: careloopAccent, fontWeight: FontWeight.w600, fontSize: 12.5)),
-              ]),
-            ),
-          ),
           const Divider(height: 20),
           _ImportRow(icon: Icons.qr_code_scanner_rounded, title: 'Import prescription', subtitle: 'Photo, camera or a document', onTap: _openImport),
           const SizedBox(height: 8),

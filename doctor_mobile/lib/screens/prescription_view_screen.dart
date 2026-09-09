@@ -39,7 +39,7 @@ class _PrescriptionViewScreenState extends State<PrescriptionViewScreen> {
     }
   }
 
-  static const _timesOfDay = ['Morning', 'Afternoon', 'Evening', 'Night'];
+  static const _timesOfDay = ['Morning', 'Afternoon', 'Evening', 'Night', 'Bedtime'];
 
   Widget _timeDots(String? frequency) {
     final f = frequency ?? '';
