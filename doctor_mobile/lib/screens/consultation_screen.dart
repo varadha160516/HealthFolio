@@ -431,8 +431,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   ),
                 ),
               OutlinedButton.icon(icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Add medicine'), onPressed: _addMedicineSheet),
-              const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _busy ? null : _issuePrescription, child: const Text('Sign & issue prescription'))),
             ]),
             _section('Lab tests', Icons.science_rounded, [
               OutlinedButton.icon(
@@ -490,6 +488,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : _scheduleFollowUp, child: const Text('Schedule follow-up'))),
             ]),
+            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _busy ? null : _issuePrescription, child: const Text('Sign & issue prescription'))),
           ],
         ),
         Positioned(
