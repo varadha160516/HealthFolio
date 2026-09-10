@@ -100,6 +100,7 @@ class _InvoicePaymentDialogState extends State<InvoicePaymentDialog> {
             _row('Doctor', '${provider?['name'] ?? '—'}${provider?['specialty'] != null ? ' · ${provider!['specialty']}' : ''}'),
             _row('Patient', member?['name'] as String? ?? '—'),
             if (dt != null) _row('Visit', '${DateFormat('MMM d, yyyy').format(dt)} · ${DateFormat('h:mm a').format(dt)}'),
+            if ((provider?['gst_number'] as String? ?? '').isNotEmpty) _row('GSTIN', provider!['gst_number'] as String),
           ]),
         ),
         const SizedBox(height: 16),

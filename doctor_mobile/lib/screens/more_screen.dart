@@ -6,6 +6,10 @@ import 'home_shell.dart';
 import 'notifications_screen.dart';
 import 'practice_settings_screen.dart';
 import 'billing_screen.dart';
+import 'clinic_screen.dart';
+import 'templates_screen.dart';
+import 'analytics_screen.dart';
+import 'compliance_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -40,15 +44,15 @@ class MoreScreen extends StatelessWidget {
             const Divider(height: 1),
             _MenuRow(icon: Icons.receipt_long_rounded, label: 'Billing', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillingScreen()))),
             const Divider(height: 1),
-            const _MenuRow(icon: Icons.description_rounded, label: 'Prescriptions', enabled: false),
-            const Divider(height: 1),
-            const _MenuRow(icon: Icons.science_rounded, label: 'Lab Orders', enabled: false),
+            _MenuRow(icon: Icons.description_rounded, label: 'Templates', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TemplatesScreen()))),
             const Divider(height: 1),
             const _MenuRow(icon: Icons.folder_rounded, label: 'Documents', enabled: false),
             const Divider(height: 1),
-            const _MenuRow(icon: Icons.bar_chart_rounded, label: 'Reports & Analytics', enabled: false),
+            _MenuRow(icon: Icons.bar_chart_rounded, label: 'Reports & Analytics', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AnalyticsScreen()))),
             const Divider(height: 1),
-            const _MenuRow(icon: Icons.local_hospital_rounded, label: 'Clinic', enabled: false),
+            _MenuRow(icon: Icons.local_hospital_rounded, label: 'Clinic', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClinicScreen()))),
+            const Divider(height: 1),
+            _MenuRow(icon: Icons.verified_user_rounded, label: 'Compliance', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComplianceScreen()))),
             const Divider(height: 1),
             _MenuRow(icon: Icons.settings_rounded, label: 'Practice Settings', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PracticeSettingsScreen()))),
           ]),

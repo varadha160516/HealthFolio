@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
@@ -6,7 +7,9 @@ import '../theme.dart';
 
 /// Every invoice this doctor has issued, with a simple revenue summary — the provider-side
 /// mirror of the member's own invoice list. Summary buckets are computed client-side from the
-/// same list rather than duplicating date logic server-side.
+/// same list rather than duplicating date logic server-side. Search/date-filter hit the server
+/// (?q=/?from=/?to= on GET /providers/me/invoices); "export" copies the current filtered list as
+/// CSV to the clipboard rather than pulling in a file-sharing package for one button.
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key});
   @override
@@ -15,6 +18,8 @@ class BillingScreen extends StatefulWidget {
 
 class _BillingScreenState extends State<BillingScreen> {
   List<dynamic>? _invoices;
+  final _searchController = TextEditingController();
+  DateTimeRange? _dateRange;
 
   @override
   void initState() {
@@ -23,8 +28,42 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _load() async {
-    final invoices = await context.read<AuthProvider>().api.getMyInvoices();
+    final api = context.read<AuthProvider>().api;
+    final invoices = await api.getMyInvoices(
+      query: _searchController.text.trim(),
+      from: _dateRange?.start.toIso8601String().substring(0, 10),
+      to: _dateRange?.end.toIso8601String().substring(0, 10),
+    );
     if (mounted) setState(() => _invoices = invoices);
+  }
+
+  Future<void> _pickDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 730)),
+      lastDate: DateTime.now(),
+      initialDateRange: _dateRange,
+    );
+    if (picked == null) return;
+    setState(() => _dateRange = picked);
+    _load();
+  }
+
+  void _clearDateRange() {
+    setState(() => _dateRange = null);
+    _load();
+  }
+
+  Future<void> _exportCsv() async {
+    if (_invoices == null || _invoices!.isEmpty) return;
+    final buffer = StringBuffer('Patient,Date,Fee,Status,Payment Method\n');
+    for (final inv in _invoices!.cast<Map<String, dynamic>>()) {
+      final issuedAt = DateTime.tryParse(inv['issued_at'] as String? ?? '')?.toLocal();
+      final dateStr = issuedAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(issuedAt) : '';
+      buffer.writeln('"${inv['member_name'] ?? ''}",$dateStr,${inv['fee_amount']},${inv['status']},${inv['payment_method'] ?? ''}');
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV copied to clipboard — paste into a spreadsheet')));
   }
 
   @override
@@ -41,7 +80,10 @@ class _BillingScreenState extends State<BillingScreen> {
     final pendingCount = invoices.where((i) => i['status'] == 'pending').length;
 
     return DocGradientScaffold(
-      appBar: AppBar(title: const Text('Billing')),
+      appBar: AppBar(
+        title: const Text('Billing'),
+        actions: [IconButton(icon: const Icon(Icons.ios_share_rounded), tooltip: 'Export CSV', onPressed: _exportCsv)],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -54,11 +96,33 @@ class _BillingScreenState extends State<BillingScreen> {
               const SizedBox(width: 10),
               Expanded(child: _StatCard(label: 'Pending', value: '$pendingCount', sub: 'unpaid')),
             ]),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              onSubmitted: (_) => _load(),
+              decoration: InputDecoration(
+                labelText: 'Search by patient name',
+                suffixIcon: IconButton(icon: const Icon(Icons.search_rounded), onPressed: _load),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickDateRange,
+                  icon: const Icon(Icons.date_range_rounded, size: 16),
+                  label: Text(_dateRange == null
+                      ? 'Filter by date'
+                      : '${DateFormat('MMM d').format(_dateRange!.start)} – ${DateFormat('MMM d').format(_dateRange!.end)}'),
+                ),
+              ),
+              if (_dateRange != null) IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: _clearDateRange),
+            ]),
             const SizedBox(height: 18),
-            const Text('ALL INVOICES', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+            const Text('INVOICES', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
             const SizedBox(height: 8),
             if (invoices.isEmpty)
-              const EmptyState(icon: Icons.receipt_long_rounded, message: 'No invoices issued yet.')
+              const EmptyState(icon: Icons.receipt_long_rounded, message: 'No invoices found.')
             else
               for (final inv in invoices) _InvoiceRow(invoice: inv),
           ],

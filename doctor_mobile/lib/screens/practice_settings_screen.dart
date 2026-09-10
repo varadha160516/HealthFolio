@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
 import '../theme.dart';
+import '../widgets/signature_pad.dart';
 
 const _weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -25,6 +26,14 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
   final _qualificationsController = TextEditingController();
   final _experienceController = TextEditingController();
   bool _savingCredentials = false;
+  final _gstController = TextEditingController();
+  bool _savingGst = false;
+  bool _savingSignature = false;
+  final _bankNameController = TextEditingController();
+  final _bankAccountController = TextEditingController();
+  final _bankIfscController = TextEditingController();
+  final _bankUpiController = TextEditingController();
+  bool _savingBank = false;
 
   @override
   void initState() {
@@ -44,7 +53,49 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
         _registrationController.text = _profile!['registration_number'] as String? ?? '';
         _qualificationsController.text = _profile!['qualifications'] as String? ?? '';
         _experienceController.text = (_profile!['years_of_experience'] as num?)?.toStringAsFixed(0) ?? '';
+        _gstController.text = _profile!['gst_number'] as String? ?? '';
+        _bankNameController.text = _profile!['bank_account_name'] as String? ?? '';
+        _bankAccountController.text = _profile!['bank_account_number'] as String? ?? '';
+        _bankIfscController.text = _profile!['bank_ifsc'] as String? ?? '';
+        _bankUpiController.text = _profile!['bank_upi_id'] as String? ?? '';
       });
+    }
+  }
+
+  Future<void> _saveGst() async {
+    setState(() => _savingGst = true);
+    try {
+      await context.read<AuthProvider>().api.updateGstNumber(_gstController.text.trim());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GST number saved')));
+    } finally {
+      if (mounted) setState(() => _savingGst = false);
+    }
+  }
+
+  Future<void> _captureSignature() async {
+    final base64Png = await showDialog<String>(context: context, builder: (_) => const SignaturePad());
+    if (base64Png == null || !mounted) return;
+    setState(() => _savingSignature = true);
+    try {
+      await context.read<AuthProvider>().api.updateSignature(base64Png);
+      if (mounted) setState(() => _profile = {..._profile!, 'signature_base64': base64Png});
+    } finally {
+      if (mounted) setState(() => _savingSignature = false);
+    }
+  }
+
+  Future<void> _saveBankDetails() async {
+    setState(() => _savingBank = true);
+    try {
+      await context.read<AuthProvider>().api.updateBankDetails(
+            accountName: _bankNameController.text.trim().isEmpty ? null : _bankNameController.text.trim(),
+            accountNumber: _bankAccountController.text.trim().isEmpty ? null : _bankAccountController.text.trim(),
+            ifsc: _bankIfscController.text.trim().isEmpty ? null : _bankIfscController.text.trim(),
+            upiId: _bankUpiController.text.trim().isEmpty ? null : _bankUpiController.text.trim(),
+          );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payout details saved')));
+    } finally {
+      if (mounted) setState(() => _savingBank = false);
     }
   }
 
@@ -181,6 +232,54 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
               TextField(controller: _experienceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Years of experience')),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _savingCredentials ? null : _saveCredentials, child: const Text('Save credentials'))),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          const Text('SIGNATURE', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          const SizedBox(height: 8),
+          DocCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('A visual signature stamped on invoices — not a legally-binding e-signature.', style: TextStyle(fontSize: 12, color: docMuted)),
+              const SizedBox(height: 10),
+              SignaturePreview(base64Png: _profile!['signature_base64'] as String?),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _savingSignature ? null : _captureSignature,
+                icon: const Icon(Icons.draw_rounded, size: 16),
+                label: Text(_savingSignature ? 'Saving…' : 'Draw signature'),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          const Text('GST NUMBER', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          const SizedBox(height: 8),
+          DocCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Shown on invoices — self-declared, not validated against any tax authority.', style: TextStyle(fontSize: 12, color: docMuted)),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: TextField(controller: _gstController, decoration: const InputDecoration(labelText: 'GST number'))),
+                const SizedBox(width: 10),
+                ElevatedButton(onPressed: _savingGst ? null : _saveGst, child: const Text('Save')),
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          const Text('PAYOUT DETAILS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          const SizedBox(height: 8),
+          DocCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('For your own records. Inert until real payment collection is wired up — stored as plain data, not encrypted.', style: TextStyle(fontSize: 12, color: docMuted)),
+              const SizedBox(height: 10),
+              TextField(controller: _bankNameController, decoration: const InputDecoration(labelText: 'Account holder name')),
+              const SizedBox(height: 10),
+              TextField(controller: _bankAccountController, decoration: const InputDecoration(labelText: 'Account number'), keyboardType: TextInputType.number),
+              const SizedBox(height: 10),
+              TextField(controller: _bankIfscController, decoration: const InputDecoration(labelText: 'IFSC code')),
+              const SizedBox(height: 10),
+              TextField(controller: _bankUpiController, decoration: const InputDecoration(labelText: 'UPI ID')),
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _savingBank ? null : _saveBankDetails, child: const Text('Save payout details'))),
             ]),
           ),
           const SizedBox(height: 20),

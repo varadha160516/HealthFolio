@@ -141,5 +141,42 @@ class ApiClient {
   Future<void> deleteTimeOff(String id) => _delete('/providers/me/time-off/$id');
 
   // --- Billing ---
-  Future<List<dynamic>> getMyInvoices() async => await _get('/providers/me/invoices');
+  Future<List<dynamic>> getMyInvoices({String? query, String? from, String? to}) async {
+    final params = <String, String>{};
+    if (query != null && query.isNotEmpty) params['q'] = query;
+    if (from != null) params['from'] = from;
+    if (to != null) params['to'] = to;
+    final qs = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
+    return await _get('/providers/me/invoices$qs');
+  }
+
+  // --- Profile extras: GST, signature, payout details ---
+  Future<void> updateGstNumber(String gst) => _patch('/providers/me/profile', {'gst_number': gst});
+  Future<void> updateSignature(String base64Png) => _patch('/providers/me/profile', {'signature_base64': base64Png});
+  Future<void> updateBankDetails({String? accountName, String? accountNumber, String? ifsc, String? upiId}) => _patch('/providers/me/profile', {
+        'bank_account_name': accountName,
+        'bank_account_number': accountNumber,
+        'bank_ifsc': ifsc,
+        'bank_upi_id': upiId,
+      });
+
+  // --- Clinic ---
+  Future<Map<String, dynamic>> getMyClinic() async => await _get('/clinics/me');
+  Future<void> updateClinic(Map<String, dynamic> payload) => _patch('/clinics/me', payload);
+  Future<List<dynamic>> getClinicProviders() async => await _get('/clinics/me/providers');
+
+  // --- Practice templates ---
+  Future<List<dynamic>> getPrescriptionTemplates() async => await _get('/providers/me/prescription-templates');
+  Future<Map<String, dynamic>> addPrescriptionTemplate(Map<String, dynamic> payload) async => await _post('/providers/me/prescription-templates', payload);
+  Future<void> deletePrescriptionTemplate(String id) => _delete('/providers/me/prescription-templates/$id');
+
+  Future<List<dynamic>> getLabTestPanels() async => await _get('/providers/me/lab-test-panels');
+  Future<Map<String, dynamic>> addLabTestPanel(Map<String, dynamic> payload) async => await _post('/providers/me/lab-test-panels', payload);
+  Future<void> deleteLabTestPanel(String id) => _delete('/providers/me/lab-test-panels/$id');
+
+  // --- Analytics ---
+  Future<Map<String, dynamic>> getAnalytics() async => await _get('/providers/me/analytics');
+
+  // --- Compliance ---
+  Future<List<dynamic>> getMyAuditLog() async => await _get('/providers/me/audit-log');
 }

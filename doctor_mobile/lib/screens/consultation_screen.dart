@@ -209,6 +209,89 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     });
   }
 
+  // Practice templates: bulk-appends a saved prescription's line items / a saved panel's tests
+  // into this visit's own draft, rather than the doctor retyping the same handful of common
+  // prescriptions and panels on every visit.
+  Future<void> _loadPrescriptionTemplate() async {
+    List<dynamic> templates;
+    try {
+      templates = await _api.getPrescriptionTemplates();
+    } catch (e) {
+      if (mounted) await _snack('$e');
+      return;
+    }
+    if (!mounted) return;
+    if (templates.isEmpty) {
+      await _snack('No saved templates yet — add one from More > Templates.');
+      return;
+    }
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final t in templates.cast<Map<String, dynamic>>())
+              ListTile(
+                title: Text(t['name'] as String? ?? ''),
+                subtitle: Text((t['line_items'] as List).map((li) => li['medicine_name']).join(', ')),
+                onTap: () => Navigator.of(context).pop(t),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      for (final li in (picked['line_items'] as List).cast<Map<String, dynamic>>()) {
+        _lineItems.add({
+          'name': li['medicine_name'] as String? ?? '',
+          'strength': li['strength'] as String? ?? '',
+          'dosage': li['dosage'] as String? ?? '',
+          'frequency': li['frequency'] as String? ?? '',
+          'duration': li['duration'] as String? ?? '',
+          'instructions': li['instructions'] as String? ?? '',
+        });
+      }
+      if ((picked['diagnosis_text'] as String? ?? '').isNotEmpty && _diagnosis.text.trim().isEmpty) {
+        _diagnosis.text = picked['diagnosis_text'] as String;
+      }
+    });
+  }
+
+  Future<void> _loadLabPanel() async {
+    List<dynamic> panels;
+    try {
+      panels = await _api.getLabTestPanels();
+    } catch (e) {
+      if (mounted) await _snack('$e');
+      return;
+    }
+    if (!mounted) return;
+    if (panels.isEmpty) {
+      await _snack('No saved panels yet — add one from More > Templates.');
+      return;
+    }
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final p in panels.cast<Map<String, dynamic>>())
+              ListTile(
+                title: Text(p['name'] as String? ?? ''),
+                subtitle: Text((p['test_names'] as List).join(', ')),
+                onTap: () => Navigator.of(context).pop(p),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _selectedTests.addAll((picked['test_names'] as List).cast<String>()));
+  }
+
   Future<void> _openLabTestPicker() async {
     final byCategory = <String, List<Map<String, dynamic>>>{};
     for (final t in _catalog.cast<Map<String, dynamic>>()) {
@@ -485,15 +568,24 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     ]),
                   ),
                 ),
-              OutlinedButton.icon(icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Add medicine'), onPressed: _addMedicineSheet),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Add medicine'), onPressed: _addMedicineSheet)),
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.description_outlined, size: 16), label: const Text('Load template'), onPressed: _loadPrescriptionTemplate)),
+              ]),
             ]),
             _section('Lab tests', Icons.science_rounded, [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.search_rounded, size: 16),
-                label: Text(_selectedTests.isEmpty ? 'Select tests…' : '${_selectedTests.length} test${_selectedTests.length == 1 ? '' : 's'} selected'),
-                onPressed: _openLabTestPicker,
-                style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
-              ),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.search_rounded, size: 16),
+                    label: Text(_selectedTests.isEmpty ? 'Select tests…' : '${_selectedTests.length} test${_selectedTests.length == 1 ? '' : 's'} selected'),
+                    onPressed: _openLabTestPicker,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.playlist_add_rounded, size: 16), label: const Text('Load panel'), onPressed: _loadLabPanel)),
+              ]),
               if (_selectedTests.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(spacing: 7, runSpacing: 7, children: [
