@@ -7,7 +7,7 @@ export const invoicesRouter = Router();
 
 function serializeInvoice(row: any) {
   const appt = db.prepare('SELECT id, datetime FROM appointments WHERE id = ?').get(row.appointment_id);
-  const provider = db.prepare('SELECT id, name, specialty FROM providers WHERE id = ?').get(row.provider_id);
+  const provider = db.prepare('SELECT id, name, specialty, gst_number FROM providers WHERE id = ?').get(row.provider_id);
   const member = db.prepare('SELECT id, name, dob, sex FROM members WHERE id = ?').get(row.member_id);
   return { ...row, appointment: appt ?? null, provider, member };
 }

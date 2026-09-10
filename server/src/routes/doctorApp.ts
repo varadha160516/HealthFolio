@@ -317,31 +317,45 @@ doctorAppRouter.post('/providers/me/notifications/:id/read', requireAuth, requir
 // checkProviderAvailable in appointments.ts) instead of the old free-text availability_note,
 // which stays as a display-only summary.
 
+const PROVIDER_TEXT_FIELDS = [
+  'registration_number',
+  'qualifications',
+  'gst_number',
+  'signature_base64',
+  'bank_account_name',
+  'bank_account_number',
+  'bank_ifsc',
+  'bank_upi_id',
+] as const;
+
 doctorAppRouter.get('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
   const provider = db
-    .prepare('SELECT id, name, specialty, clinic_id, availability_note, default_fee, registration_number, qualifications, years_of_experience FROM providers WHERE id = ?')
+    .prepare(
+      `SELECT id, name, specialty, clinic_id, availability_note, default_fee, years_of_experience, ${PROVIDER_TEXT_FIELDS.join(', ')}
+       FROM providers WHERE id = ?`
+    )
     .get(req.session!.providerId);
   if (!provider) return res.status(404).json({ error: 'Not found' });
   res.json(provider);
 });
 
 doctorAppRouter.patch('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
-  const { default_fee, registration_number, qualifications, years_of_experience } = req.body ?? {};
+  const body = req.body ?? {};
+  const { default_fee, years_of_experience } = body;
   if (default_fee !== undefined && default_fee !== null) {
     const fee = Number(default_fee);
     if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ error: 'default_fee must be a non-negative number' });
     db.prepare('UPDATE providers SET default_fee = ? WHERE id = ?').run(fee, req.session!.providerId);
   }
-  if (registration_number !== undefined) {
-    db.prepare('UPDATE providers SET registration_number = ? WHERE id = ?').run((registration_number as string)?.trim() || null, req.session!.providerId);
-  }
-  if (qualifications !== undefined) {
-    db.prepare('UPDATE providers SET qualifications = ? WHERE id = ?').run((qualifications as string)?.trim() || null, req.session!.providerId);
-  }
   if (years_of_experience !== undefined && years_of_experience !== null) {
     const years = Number(years_of_experience);
     if (!Number.isInteger(years) || years < 0) return res.status(400).json({ error: 'years_of_experience must be a non-negative whole number' });
     db.prepare('UPDATE providers SET years_of_experience = ? WHERE id = ?').run(years, req.session!.providerId);
+  }
+  for (const field of PROVIDER_TEXT_FIELDS) {
+    if (body[field] !== undefined) {
+      db.prepare(`UPDATE providers SET ${field} = ? WHERE id = ?`).run((body[field] as string)?.trim() || null, req.session!.providerId);
+    }
   }
   res.json({ ok: true });
 });
@@ -394,12 +408,178 @@ doctorAppRouter.delete('/providers/me/time-off/:id', requireAuth, requireRole('p
 });
 
 // --- Billing: every invoice this doctor has issued, for the practice's own billing/revenue view
-// (member-side invoice list stays in invoices.ts — this is the mirror for the provider side). ---
+// (member-side invoice list stays in invoices.ts — this is the mirror for the provider side).
+// Optional ?q= (patient name, case-insensitive substring) and ?from=/?to= (YYYY-MM-DD, inclusive
+// on issued_at's date) narrow the list for the Billing screen's search/filter -- CSV export reuses
+// this same endpoint client-side rather than needing a separate export route. ---
 doctorAppRouter.get('/providers/me/invoices', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const { q, from, to } = req.query as { q?: string; from?: string; to?: string };
+  const clauses = ['i.provider_id = ?'];
+  const params: any[] = [req.session!.providerId];
+  if (q) {
+    clauses.push('m.name LIKE ?');
+    params.push(`%${q}%`);
+  }
+  if (from) {
+    clauses.push('date(i.issued_at) >= date(?)');
+    params.push(from);
+  }
+  if (to) {
+    clauses.push('date(i.issued_at) <= date(?)');
+    params.push(to);
+  }
   const rows = db
+    .prepare(`SELECT i.*, m.name AS member_name FROM invoices i JOIN members m ON m.id = i.member_id WHERE ${clauses.join(' AND ')} ORDER BY i.issued_at DESC`)
+    .all(...params);
+  res.json(rows);
+});
+
+// --- Clinic management (clinic_admin's back office; a plain doctor can still read their own
+// clinic's details/roster, just not edit them). ---
+
+doctorAppRouter.get('/clinics/me', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const provider = db.prepare('SELECT clinic_id FROM providers WHERE id = ?').get(req.session!.providerId) as { clinic_id: string | null } | undefined;
+  if (!provider?.clinic_id) return res.status(404).json({ error: 'Not associated with a clinic' });
+  const clinic = db.prepare('SELECT * FROM clinics WHERE id = ?').get(provider.clinic_id);
+  res.json(clinic);
+});
+
+doctorAppRouter.patch('/clinics/me', requireAuth, requireRole('provider_clinic_admin'), (req, res) => {
+  const provider = db.prepare('SELECT clinic_id FROM providers WHERE id = ?').get(req.session!.providerId) as { clinic_id: string | null } | undefined;
+  if (!provider?.clinic_id) return res.status(404).json({ error: 'Not associated with a clinic' });
+  const { name, address, city } = req.body ?? {};
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = (name as string)?.trim() || null;
+  if (address !== undefined) updates.address = (address as string)?.trim() || null;
+  if (city !== undefined) updates.city = (city as string)?.trim() || null;
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No editable fields in request body' });
+  const setClause = Object.keys(updates).map((f) => `${f} = @${f}`).join(', ');
+  db.prepare(`UPDATE clinics SET ${setClause} WHERE id = @id`).run({ ...updates, id: provider.clinic_id });
+  res.json({ ok: true });
+});
+
+doctorAppRouter.get('/clinics/me/providers', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const provider = db.prepare('SELECT clinic_id FROM providers WHERE id = ?').get(req.session!.providerId) as { clinic_id: string | null } | undefined;
+  if (!provider?.clinic_id) return res.status(404).json({ error: 'Not associated with a clinic' });
+  const rows = db.prepare('SELECT id, type, name, specialty, availability_note FROM providers WHERE clinic_id = ? ORDER BY name').all(provider.clinic_id);
+  res.json(rows);
+});
+
+// --- Practice templates: reusable prescriptions and lab-test panels, loaded straight into the
+// consultation screen's own Add Medicine / Select Lab Tests flows rather than being a
+// disconnected list nobody actually uses. ---
+
+function parseJsonArray(raw: string | null | undefined): any[] {
+  try {
+    return JSON.parse(raw ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+doctorAppRouter.get('/providers/me/prescription-templates', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  const rows = db.prepare('SELECT * FROM prescription_templates WHERE provider_id = ? ORDER BY created_at DESC').all(req.session!.providerId) as any[];
+  res.json(rows.map((r) => ({ ...r, line_items: parseJsonArray(r.line_items) })));
+});
+
+doctorAppRouter.post('/providers/me/prescription-templates', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  const { name, diagnosis_text, icd_code, line_items } = req.body ?? {};
+  if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+  if (!Array.isArray(line_items) || line_items.length === 0) return res.status(400).json({ error: 'line_items is required' });
+  const id = uuid();
+  db.prepare(
+    `INSERT INTO prescription_templates (id, provider_id, name, diagnosis_text, icd_code, line_items, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, req.session!.providerId, name.trim(), diagnosis_text ?? null, icd_code ?? null, JSON.stringify(line_items), now());
+  res.status(201).json({ id });
+});
+
+doctorAppRouter.delete('/providers/me/prescription-templates/:id', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  db.prepare('DELETE FROM prescription_templates WHERE id = ? AND provider_id = ?').run(req.params.id, req.session!.providerId);
+  res.status(204).end();
+});
+
+doctorAppRouter.get('/providers/me/lab-test-panels', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  const rows = db.prepare('SELECT * FROM lab_test_panels WHERE provider_id = ? ORDER BY created_at DESC').all(req.session!.providerId) as any[];
+  res.json(rows.map((r) => ({ ...r, test_names: parseJsonArray(r.test_names) })));
+});
+
+doctorAppRouter.post('/providers/me/lab-test-panels', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  const { name, test_names } = req.body ?? {};
+  if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+  if (!Array.isArray(test_names) || test_names.length === 0) return res.status(400).json({ error: 'test_names is required' });
+  const id = uuid();
+  db.prepare(`INSERT INTO lab_test_panels (id, provider_id, name, test_names, created_at) VALUES (?, ?, ?, ?, ?)`).run(
+    id,
+    req.session!.providerId,
+    name.trim(),
+    JSON.stringify(test_names),
+    now()
+  );
+  res.status(201).json({ id });
+});
+
+doctorAppRouter.delete('/providers/me/lab-test-panels/:id', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  db.prepare('DELETE FROM lab_test_panels WHERE id = ? AND provider_id = ?').run(req.params.id, req.session!.providerId);
+  res.status(204).end();
+});
+
+// --- Analytics: computed on read from existing tables, no new storage. Patient volume (last 8
+// weeks), no-show/cancellation rate, top diagnoses, and follow-up compliance (of this doctor's
+// own scheduled follow-ups, how many actually happened vs are overdue and still unscheduled). ---
+doctorAppRouter.get('/providers/me/analytics', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const providerId = req.session!.providerId;
+
+  const weeklyVolume = db
     .prepare(
-      `SELECT i.*, m.name AS member_name FROM invoices i JOIN members m ON m.id = i.member_id WHERE i.provider_id = ? ORDER BY i.issued_at DESC`
+      `SELECT strftime('%Y-%W', datetime) AS week, COUNT(*) AS count
+       FROM appointments WHERE provider_id = ? AND datetime >= date('now', '-56 days')
+       GROUP BY week ORDER BY week`
     )
-    .all(req.session!.providerId);
+    .all(providerId) as { week: string; count: number }[];
+
+  const totals = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+         SUM(CASE WHEN status IN ('consent_denied','consent_expired') THEN 1 ELSE 0 END) AS no_show
+       FROM appointments WHERE provider_id = ?`
+    )
+    .get(providerId) as { total: number; cancelled: number; no_show: number };
+
+  const topDiagnoses = db
+    .prepare(
+      `SELECT diagnosis_text, COUNT(*) AS count FROM prescriptions
+       WHERE provider_id = ? AND diagnosis_text IS NOT NULL AND diagnosis_text != ''
+       GROUP BY diagnosis_text ORDER BY count DESC LIMIT 8`
+    )
+    .all(providerId);
+
+  const followUps = db
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN follow_up_appointment_id IS NOT NULL THEN 1 ELSE 0 END) AS scheduled,
+         COUNT(*) AS advised
+       FROM consultation_notes WHERE provider_id = ? AND follow_up_after IS NOT NULL AND follow_up_after != 'as_needed'`
+    )
+    .get(providerId) as { scheduled: number; advised: number };
+
+  res.json({
+    weeklyVolume,
+    totals: {
+      total: totals.total ?? 0,
+      cancelled: totals.cancelled ?? 0,
+      noShow: totals.no_show ?? 0,
+    },
+    topDiagnoses,
+    followUps: { scheduled: followUps.scheduled ?? 0, advised: followUps.advised ?? 0 },
+  });
+});
+
+// --- Compliance: this doctor's own audit trail (consent requests, data access, visit completion)
+// -- the same audit_log table the member's own "Consent & access log" already reads, filtered to
+// entries this doctor's account actually performed. ---
+doctorAppRouter.get('/providers/me/audit-log', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const rows = db.prepare('SELECT * FROM audit_log WHERE actor_id = ? ORDER BY timestamp DESC LIMIT 200').all(req.session!.userId);
   res.json(rows);
 });

@@ -162,7 +162,18 @@ CREATE TABLE IF NOT EXISTS providers (
   default_fee REAL, -- prefills (doesn't force) the per-visit fee prompt on Complete Visit
   registration_number TEXT, -- medical council registration/license number, self-declared (not verified against any registry)
   qualifications TEXT, -- free text, e.g. "MBBS, MD (General Medicine)"
-  years_of_experience INTEGER
+  years_of_experience INTEGER,
+  gst_number TEXT, -- shown on invoices; self-declared, not validated against any tax authority
+  -- Visual signature only (a stamped image), not a legally-binding e-signature -- this app has no
+  -- document-generation/PKI/timestamp-authority layer behind it.
+  signature_base64 TEXT,
+  -- Payout details for the doctor's own records. Stored as plain fields, same security posture as
+  -- the rest of this demo app (no encryption-at-rest) -- fine for practice-management bookkeeping,
+  -- not for real production banking credentials. Inert until a real payment gateway exists.
+  bank_account_name TEXT,
+  bank_account_number TEXT,
+  bank_ifsc TEXT,
+  bank_upi_id TEXT
 );
 
 -- A member's saved/favorite doctors — bookable regardless of distance (unlike the
@@ -537,5 +548,26 @@ CREATE TABLE IF NOT EXISTS provider_time_off (
   provider_id TEXT NOT NULL REFERENCES providers(id),
   date TEXT NOT NULL, -- "YYYY-MM-DD"
   reason TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Reusable prescriptions a doctor issues often -- loaded from the consultation screen's own
+-- "Add Medicine" flow (bulk-appends line_items) rather than being a separate, disconnected list.
+CREATE TABLE IF NOT EXISTS prescription_templates (
+  id TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  name TEXT NOT NULL,
+  diagnosis_text TEXT,
+  icd_code TEXT,
+  line_items TEXT NOT NULL DEFAULT '[]', -- JSON array of {medicine_name, strength, dosage, frequency, duration, instructions}
+  created_at TEXT NOT NULL
+);
+
+-- Reusable lab-test bundles, same idea -- loaded from the "select lab tests" sheet.
+CREATE TABLE IF NOT EXISTS lab_test_panels (
+  id TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  name TEXT NOT NULL,
+  test_names TEXT NOT NULL DEFAULT '[]', -- JSON array of test names
   created_at TEXT NOT NULL
 );

@@ -255,6 +255,12 @@ export function runMigrations(db: Db) {
   ensureColumn(db, 'providers', 'registration_number', 'TEXT');
   ensureColumn(db, 'providers', 'qualifications', 'TEXT');
   ensureColumn(db, 'providers', 'years_of_experience', 'INTEGER');
+  ensureColumn(db, 'providers', 'gst_number', 'TEXT');
+  ensureColumn(db, 'providers', 'signature_base64', 'TEXT');
+  ensureColumn(db, 'providers', 'bank_account_name', 'TEXT');
+  ensureColumn(db, 'providers', 'bank_account_number', 'TEXT');
+  ensureColumn(db, 'providers', 'bank_ifsc', 'TEXT');
+  ensureColumn(db, 'providers', 'bank_upi_id', 'TEXT');
   db.exec(`
     CREATE TABLE IF NOT EXISTS provider_availability (
       id TEXT PRIMARY KEY,
@@ -271,6 +277,26 @@ export function runMigrations(db: Db) {
       provider_id TEXT NOT NULL REFERENCES providers(id),
       date TEXT NOT NULL,
       reason TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prescription_templates (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES providers(id),
+      name TEXT NOT NULL,
+      diagnosis_text TEXT,
+      icd_code TEXT,
+      line_items TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lab_test_panels (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES providers(id),
+      name TEXT NOT NULL,
+      test_names TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL
     )
   `);
