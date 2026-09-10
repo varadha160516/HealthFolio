@@ -235,6 +235,17 @@ class ApiClient {
   Future<Map<String, dynamic>> addLabTestBooking(Map<String, dynamic> payload) async => await _post('/lab-test-bookings', payload);
   Future<void> updateLabTestBooking(String id, Map<String, dynamic> payload) => _patch('/lab-test-bookings/$id', payload);
 
+  // --- Invoices & payment (demo flow — no real payment gateway; "pay" just marks it paid) ---
+  Future<List<dynamic>> getFamilyInvoices() async => await _get('/family/invoices');
+  Future<List<dynamic>> getMemberInvoices(String memberId) async => await _get('/members/$memberId/invoices');
+  Future<Map<String, dynamic>> getAppointmentInvoice(String appointmentId) async => await _get('/appointments/$appointmentId/invoice');
+  Future<void> payInvoice(String invoiceId, String paymentMethod) => _post('/invoices/$invoiceId/pay', {'payment_method': paymentMethod});
+
+  // --- Pharmacy orders (medicine ordering — demo delivery timeline, no real courier) ---
+  Future<List<dynamic>> getPharmacyOrders(String memberId) async => await _get('/members/$memberId/pharmacy-orders');
+  Future<Map<String, dynamic>> placePharmacyOrder(String memberId, Map<String, dynamic> payload) async => await _post('/members/$memberId/pharmacy-orders', payload);
+  Future<void> updatePharmacyOrder(String id, String status) => _patch('/pharmacy-orders/$id', {'status': status});
+
   // --- Translation (Symptoms' voice-in-your-language logging) ---
   Future<String> translateText(String text, String sourceLanguage) async =>
       (await _post('/translate', {'text': text, 'source_language': sourceLanguage}) as Map<String, dynamic>)['translated'] as String;

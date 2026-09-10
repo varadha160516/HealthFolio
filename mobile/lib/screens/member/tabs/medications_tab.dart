@@ -8,6 +8,8 @@ import '../../../widgets/section_card.dart';
 import 'add_medication_sheet.dart';
 import 'import_prescription_sheet.dart';
 import 'medication_detail_screen.dart';
+import 'order_medicine_screen.dart';
+import 'pharmacy_orders_screen.dart';
 import 'prescription_review_screen.dart';
 
 enum _Segment { active, history, cabinet }
@@ -63,6 +65,19 @@ class _MedicationsTabState extends State<MedicationsTab> {
   Future<void> _openDetail(String id) async {
     await Navigator.of(context).push(pushRoute(MedicationDetailScreen(medicationId: id, memberId: widget.memberId)));
     _load();
+  }
+
+  Future<void> _openOrderMedicine() async {
+    final active = (_schedules ?? []).cast<Map<String, dynamic>>().where((s) => s['status'] == 'active').toList();
+    final placed = await Navigator.of(context)
+        .push<bool>(pushRoute(OrderMedicineScreen(memberId: widget.memberId, activeMedications: active)));
+    if (placed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order placed')));
+    }
+  }
+
+  void _openOrders() {
+    Navigator.of(context).push(pushRoute(PharmacyOrdersScreen(memberId: widget.memberId)));
   }
 
   @override
@@ -164,6 +179,10 @@ class _MedicationsTabState extends State<MedicationsTab> {
                 child: Text(_segment == _Segment.active ? 'No active medications yet.' : 'No past medications yet.', textAlign: TextAlign.center, style: const TextStyle(color: careloopMuted)),
               ),
           ],
+          const SizedBox(height: 8),
+          _ImportRow(icon: Icons.local_shipping_rounded, title: 'Order medicine', subtitle: 'Get your active medicines delivered', onTap: _openOrderMedicine),
+          const SizedBox(height: 8),
+          _ImportRow(icon: Icons.receipt_long_rounded, title: 'My orders', subtitle: 'Track medicine deliveries', onTap: _openOrders),
           const SizedBox(height: 8),
           const Divider(height: 20),
           _ImportRow(icon: Icons.qr_code_scanner_rounded, title: 'Import prescription', subtitle: 'Photo, camera or a document', onTap: _openImport),

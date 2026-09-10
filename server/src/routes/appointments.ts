@@ -418,10 +418,25 @@ appointmentsRouter.post('/appointments/:id/complete', requireAuth, requireRole('
   if (!appt) return res.status(404).json({ error: 'Not found' });
   if (!assertAppointmentVisible(req, res, appt)) return;
   if (!canTransition(appt.status, 'completed')) return res.status(409).json({ error: `Cannot complete from ${appt.status}` });
+
+  // fee_amount is optional at the API level (older/other clients calling this same endpoint
+  // shouldn't break), but Doctor Console's Complete Visit flow always sends it -- that's what
+  // actually produces an invoice for the member to pay.
+  const { fee_amount } = req.body ?? {};
+  let invoiceId: string | undefined;
+  if (fee_amount !== undefined && fee_amount !== null) {
+    const fee = Number(fee_amount);
+    if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ error: 'fee_amount must be a non-negative number' });
+    invoiceId = uuid();
+    db.prepare(
+      `INSERT INTO invoices (id, appointment_id, member_id, provider_id, fee_amount, currency, status, issued_at) VALUES (?, ?, ?, ?, ?, 'INR', 'pending', ?)`
+    ).run(invoiceId, appt.id, appt.member_id, appt.provider_id, fee, now());
+  }
+
   db.prepare(`UPDATE appointments SET status = 'completed', updated_at = ? WHERE id = ?`).run(now(), appt.id);
   if (appt.consent_grant_id) db.prepare(`UPDATE consent_grants SET revoked_at = ? WHERE id = ?`).run(now(), appt.consent_grant_id);
   logAudit(req.session!.userId, req.session!.role, 'visit_completed_access_revoked', appt.member_id, { appointmentId: appt.id });
-  res.json({ ok: true });
+  res.json({ ok: true, invoiceId });
 });
 
 appointmentsRouter.get('/providers', requireAuth, (_req, res) => {

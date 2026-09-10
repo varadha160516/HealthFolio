@@ -482,3 +482,33 @@ CREATE TABLE IF NOT EXISTS provider_notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_provider_notifications_provider ON provider_notifications (provider_id, created_at DESC);
+
+-- Created automatically when a doctor completes a visit with a fee entered -- one invoice per
+-- appointment. Payment is a demo/simulated flow (no real payment gateway): a member picks a
+-- payment method and it's marked paid immediately, no actual card/UPI/netbanking processing.
+CREATE TABLE IF NOT EXISTS invoices (
+  id TEXT PRIMARY KEY,
+  appointment_id TEXT NOT NULL REFERENCES appointments(id),
+  member_id TEXT NOT NULL REFERENCES members(id),
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  fee_amount REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','cancelled')),
+  payment_method TEXT CHECK (payment_method IN ('card','upi','netbanking') OR payment_method IS NULL),
+  paid_at TEXT,
+  issued_at TEXT NOT NULL
+);
+
+-- Medicine ordering from a prescription's line items. Delivery tracking is a simple demo timeline
+-- (placed -> delivered), not a real logistics integration -- estimated_delivery_date is computed
+-- at order time and status is advanced by the member themselves (a real courier isn't wired up).
+CREATE TABLE IF NOT EXISTS pharmacy_orders (
+  id TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL REFERENCES members(id),
+  prescription_id TEXT REFERENCES prescriptions(id),
+  line_items TEXT NOT NULL DEFAULT '[]', -- JSON array of {medicine_name, strength, quantity}
+  delivery_address TEXT,
+  status TEXT NOT NULL DEFAULT 'placed' CHECK (status IN ('placed','delivered','cancelled')),
+  estimated_delivery_date TEXT,
+  created_at TEXT NOT NULL
+);

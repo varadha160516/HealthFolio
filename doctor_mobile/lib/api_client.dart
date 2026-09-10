@@ -80,7 +80,7 @@ class ApiClient {
   Future<Map<String, dynamic>> resendConsent(String id, String method) async => await _post('/appointments/$id/resend-consent', {'method': method});
   Future<void> verifyOtp(String id, String otp) => _post('/appointments/$id/verify-otp', {'otp': otp});
   Future<void> startConsultation(String id) => _post('/appointments/$id/start-consultation');
-  Future<void> completeVisit(String id) => _post('/appointments/$id/complete');
+  Future<void> completeVisit(String id, {required double feeAmount}) => _post('/appointments/$id/complete', {'fee_amount': feeAmount});
   Future<Map<String, dynamic>> getPrevisitBrief(String id) async => await _get('/appointments/$id/previsit-brief');
 
   // --- Vitals ---

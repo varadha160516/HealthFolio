@@ -12,6 +12,7 @@ import 'screens/member/ai_chat_screen.dart';
 import 'screens/lab_tests/lab_tests_home_screen.dart';
 import 'screens/provider/provider_console_screen.dart';
 import 'screens/admin/admin_review_queue_screen.dart';
+import 'screens/member/invoice_payment_dialog.dart';
 import 'utils/motion.dart';
 import 'widgets/glass.dart';
 import 'widgets/gradient_fab.dart';
@@ -106,6 +107,9 @@ class _HomeShellState extends State<HomeShell> {
   int _memberTabIndex = 0;
   Timer? _consentPoll;
   bool _consentDialogOpen = false;
+  Timer? _invoicePoll;
+  bool _invoiceDialogOpen = false;
+  final Set<String> _seenInvoiceIds = {};
 
   @override
   void initState() {
@@ -116,13 +120,50 @@ class _HomeShellState extends State<HomeShell> {
     if (context.read<AuthProvider>().session?.isMember == true) {
       _checkConsentRequests();
       _consentPoll = Timer.periodic(const Duration(seconds: 8), (_) => _checkConsentRequests());
+      _checkPendingInvoices();
+      _invoicePoll = Timer.periodic(const Duration(seconds: 8), (_) => _checkPendingInvoices());
     }
   }
 
   @override
   void dispose() {
     _consentPoll?.cancel();
+    _invoicePoll?.cancel();
     super.dispose();
+  }
+
+  // Same polling pattern as consent requests -- surfaces a completed visit's invoice as a
+  // payment popup regardless of which tab the member is on. "Pay later" (closing the dialog) is
+  // remembered per invoice ID for this session so it doesn't nag again every 8 seconds; a fresh
+  // app launch will offer it again since that set isn't persisted, which is fine -- an unpaid
+  // invoice should stay visible eventually, just not relentlessly mid-session.
+  Future<void> _checkPendingInvoices() async {
+    if (_invoiceDialogOpen || !mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (auth.session?.isMember != true) return;
+    try {
+      final invoices = await auth.api.getFamilyInvoices();
+      if (!mounted) return;
+      final pending = invoices
+          .cast<Map<String, dynamic>>()
+          .where((i) => i['status'] == 'pending' && !_seenInvoiceIds.contains(i['id']))
+          .toList();
+      if (pending.isEmpty) return;
+      await _showInvoiceDialog(pending.first);
+    } catch (_) {
+      // silent -- a transient network hiccup shouldn't interrupt the user with an error dialog
+    }
+  }
+
+  Future<void> _showInvoiceDialog(Map<String, dynamic> invoice) async {
+    setState(() => _invoiceDialogOpen = true);
+    _seenInvoiceIds.add(invoice['id'] as String);
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => InvoicePaymentDialog(invoice: invoice),
+    );
+    if (mounted) setState(() => _invoiceDialogOpen = false);
   }
 
   // Polls for a doctor's live in-app consent request and surfaces it as a blocking dialog

@@ -62,3 +62,54 @@ Error: NOT NULL constraint failed: medication_schedules.created_at
 6:15:44 pm [tsx] change in ./src\routes\appointments.ts Restarting...
 Dictionary at v1.1.0. Demo data already present, skipping seed.
 CareLoop API listening on http://localhost:4000 (extraction mode: live)
+12:16:53 am [tsx] change in ./src\routes\labTests.ts Restarting...
+12:16:57 am [tsx] change in ./src\routes\labTests.ts Restarting...
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+
+> careloop@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> careloop-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+9:43:42 pm [tsx] change in ./src\routes\appointments.ts Restarting...
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+9:45:51 pm [tsx] change in ./src\routes\appointments.ts Restarting...
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+Error: Transform failed with 1 error:
+C:\Users\varad\CareLoop\server\src\routes\appointments.ts:389:8: ERROR: The symbol "provider" has already been declared
+    at failureErrorWithLog (C:\Users\varad\CareLoop\node_modules\esbuild\lib\main.js:1752:15)
+    at C:\Users\varad\CareLoop\node_modules\esbuild\lib\main.js:1019:50
+    at responseCallbacks.<computed> (C:\Users\varad\CareLoop\node_modules\esbuild\lib\main.js:886:9)
+    at handleIncomingPacket (C:\Users\varad\CareLoop\node_modules\esbuild\lib\main.js:941:12)
+    at Socket.readFromStdout (C:\Users\varad\CareLoop\node_modules\esbuild\lib\main.js:864:7)
+    at Socket.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at Readable.push (node:internal/streams/readable:394:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
+  name: 'TransformError'
+}
+
+Node.js v24.16.0
+9:46:01 pm [tsx] change in ./src\routes\appointments.ts Rerunning...
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)
+
+> careloop@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> careloop-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Dictionary at v1.1.0. Demo data already present, skipping seed.
+CareLoop API listening on http://localhost:4000 (extraction mode: live)

@@ -14,6 +14,8 @@ import { medicationsRouter } from './routes/medications.js';
 import { labTestsRouter } from './routes/labTests.js';
 import { translateRouter } from './routes/translate.js';
 import { doctorAppRouter } from './routes/doctorApp.js';
+import { invoicesRouter } from './routes/invoices.js';
+import { pharmacyOrdersRouter } from './routes/pharmacyOrders.js';
 import { extractionModeLabel } from './pipeline/extract.js';
 
 export function buildApp() {
@@ -37,6 +39,8 @@ export function buildApp() {
   app.use('/api', labTestsRouter);
   app.use('/api', translateRouter);
   app.use('/api', doctorAppRouter);
+  app.use('/api', invoicesRouter);
+  app.use('/api', pharmacyOrdersRouter);
 
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);

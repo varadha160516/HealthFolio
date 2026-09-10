@@ -312,13 +312,60 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   }
 
   Future<void> _completeVisit() async {
+    final fee = await _askConsultationFee();
+    if (fee == null) return; // cancelled
     await _runBusy(() async {
       await _saveNotes(silent: true);
-      await _api.completeVisit(widget.appointmentId);
+      await _api.completeVisit(widget.appointmentId, feeAmount: fee);
       if (mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => VisitSummaryScreen(appointmentId: widget.appointmentId)));
       }
     });
+  }
+
+  // Generates the invoice the member sees in HealthFolio — every visit needs a fee entered before
+  // it can be completed, so the invoice always has a real, doctor-stated amount rather than a
+  // guessed default.
+  Future<double?> _askConsultationFee() async {
+    final controller = TextEditingController();
+    String? error;
+    return showDialog<double>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Consultation fee'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Enter the fee for this visit — the patient will see this on their invoice.', style: TextStyle(fontSize: 12.5, color: docMuted)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(labelText: 'Fee (₹)', errorText: error, prefixText: '₹ '),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                final fee = double.tryParse(controller.text.trim());
+                if (fee == null || fee < 0) {
+                  setDialogState(() => error = 'Enter a valid amount');
+                  return;
+                }
+                Navigator.of(dialogContext).pop(fee);
+              },
+              child: const Text('Complete Visit'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
