@@ -37,7 +37,7 @@ class _TrendsTabState extends State<TrendsTab> {
     final qualitative = (_data!['qualitativeTimelines'] as List<dynamic>);
 
     if (grouped.isEmpty && qualitative.isEmpty) {
-      return const EmptyState(icon: Icons.show_chart_rounded, message: 'Not enough entries yet to chart — a second checkup for the same result will start the line.');
+      return const EmptyState(icon: Icons.show_chart_rounded, message: 'No records to compare');
     }
 
     return ListView(

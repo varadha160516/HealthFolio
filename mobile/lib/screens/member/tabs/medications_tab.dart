@@ -6,13 +6,11 @@ import '../../../utils/medication_schedule_infer.dart';
 import '../../../utils/motion.dart';
 import '../../../widgets/section_card.dart';
 import 'add_medication_sheet.dart';
-import 'import_prescription_sheet.dart';
 import 'medication_detail_screen.dart';
 import 'order_medicine_screen.dart';
 import 'pharmacy_orders_screen.dart';
-import 'prescription_review_screen.dart';
 
-enum _Segment { active, history, cabinet }
+enum _Segment { active, history }
 
 class MedicationsTab extends StatefulWidget {
   final String memberId;
@@ -48,20 +46,6 @@ class _MedicationsTabState extends State<MedicationsTab> {
     if (result == true) _load();
   }
 
-  Future<void> _openImport() async {
-    final uploadResult = await showModalBottomSheet<dynamic>(context: context, isScrollControlled: true, builder: (_) => ImportPrescriptionSheet(memberId: widget.memberId));
-    if (uploadResult is! Map || !mounted) return;
-    final documentId = uploadResult['documentId'] as String?;
-    if (documentId == null) return;
-    if (uploadResult['prescriptionId'] == null) {
-      // Extraction failed (manual_entry_required) — the document is still saved, just nothing to review yet.
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Saved, but couldn't read it automatically — add the medicines manually.")));
-      return;
-    }
-    final added = await Navigator.of(context).push<int>(pushRoute(PrescriptionReviewScreen(memberId: widget.memberId, documentId: documentId)));
-    if (added != null && added > 0) _load();
-  }
-
   Future<void> _openDetail(String id) async {
     await Navigator.of(context).push(pushRoute(MedicationDetailScreen(medicationId: id, memberId: widget.memberId)));
     _load();
@@ -87,7 +71,6 @@ class _MedicationsTabState extends State<MedicationsTab> {
     final schedules = _schedules!.cast<Map<String, dynamic>>();
     final active = schedules.where((s) => s['status'] == 'active').toList();
     final history = schedules.where((s) => s['status'] != 'active').toList();
-    final asNeededActive = active.where((s) => s['frequency'] == 'as_needed').length;
     final scheduledToday = (_today!['scheduled'] as List).cast<Map<String, dynamic>>();
     final dueCount = scheduledToday.where((d) => d['status'] == 'due').length;
     final nextDue = scheduledToday.where((d) => d['status'] == 'due' || d['status'] == 'upcoming').toList();
@@ -153,7 +136,7 @@ class _MedicationsTabState extends State<MedicationsTab> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(color: _segment == s ? careloopAccentLight : Colors.transparent, borderRadius: BorderRadius.circular(999)),
                       child: Text(
-                        switch (s) { _Segment.active => 'Active', _Segment.history => 'History', _Segment.cabinet => 'Cabinet' },
+                        switch (s) { _Segment.active => 'Active', _Segment.history => 'History' },
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _segment == s ? careloopAccent : careloopMuted),
                       ),
@@ -163,31 +146,22 @@ class _MedicationsTabState extends State<MedicationsTab> {
             ]),
           ),
           const SizedBox(height: 14),
-          if (_segment == _Segment.cabinet)
-            _Cabinet(active: active.length - asNeededActive, asNeeded: asNeededActive, completed: history.where((s) => s['status'] == 'completed').length, stopped: history.where((s) => s['status'] == 'stopped').length)
-          else ...[
-            for (final s in (_segment == _Segment.active ? active : history))
-              _MedicationCard(
-                schedule: s,
-                todayStatus: s['frequency'] == 'as_needed' ? null : byScheduleToday[s['id']]?['status'],
-                lastTakenAt: s['frequency'] == 'as_needed' ? prnLastTaken[s['id']] : null,
-                onTap: () => _openDetail(s['id']),
-              ),
-            if ((_segment == _Segment.active ? active : history).isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Text(_segment == _Segment.active ? 'No active medications yet.' : 'No past medications yet.', textAlign: TextAlign.center, style: const TextStyle(color: careloopMuted)),
-              ),
-          ],
+          for (final s in (_segment == _Segment.active ? active : history))
+            _MedicationCard(
+              schedule: s,
+              todayStatus: s['frequency'] == 'as_needed' ? null : byScheduleToday[s['id']]?['status'],
+              lastTakenAt: s['frequency'] == 'as_needed' ? prnLastTaken[s['id']] : null,
+              onTap: () => _openDetail(s['id']),
+            ),
+          if ((_segment == _Segment.active ? active : history).isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(_segment == _Segment.active ? 'No active medications yet.' : 'No past medications yet.', textAlign: TextAlign.center, style: const TextStyle(color: careloopMuted)),
+            ),
           const SizedBox(height: 8),
           _ImportRow(icon: Icons.local_shipping_rounded, title: 'Order medicine', subtitle: 'Get your active medicines delivered', onTap: _openOrderMedicine),
           const SizedBox(height: 8),
           _ImportRow(icon: Icons.receipt_long_rounded, title: 'My orders', subtitle: 'Track medicine deliveries', onTap: _openOrders),
-          const SizedBox(height: 8),
-          const Divider(height: 20),
-          _ImportRow(icon: Icons.qr_code_scanner_rounded, title: 'Import prescription', subtitle: 'Photo, camera or a document', onTap: _openImport),
-          const SizedBox(height: 8),
-          _ImportRow(icon: Icons.folder_rounded, title: 'Import from Files', subtitle: 'PDF or document', onTap: _openImport),
         ],
       ),
     );
@@ -258,46 +232,6 @@ class _StatusChip extends StatelessWidget {
         if (icon != null) Icon(icon, size: 11, color: fg) else Container(width: 6, height: 6, decoration: BoxDecoration(color: fg, shape: BoxShape.circle)),
         const SizedBox(width: 4),
         Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 10.5)),
-      ]),
-    );
-  }
-}
-
-class _Cabinet extends StatelessWidget {
-  final int active;
-  final int asNeeded;
-  final int completed;
-  final int stopped;
-  const _Cabinet({required this.active, required this.asNeeded, required this.completed, required this.stopped});
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      title: 'Medication cabinet',
-      child: Column(children: [
-        _CabinetRow(label: 'Active', count: active, color: careloopGreen),
-        _CabinetRow(label: 'As needed', count: asNeeded, color: careloopMuted),
-        _CabinetRow(label: 'Completed', count: completed, color: careloopAccent),
-        _CabinetRow(label: 'Stopped', count: stopped, color: careloopDanger),
-      ]),
-    );
-  }
-}
-
-class _CabinetRow extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color color;
-  const _CabinetRow({required this.label, required this.count, required this.color});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-        Text('$count', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: color)),
       ]),
     );
   }

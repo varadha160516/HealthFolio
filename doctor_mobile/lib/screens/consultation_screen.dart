@@ -70,6 +70,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   String _followUpAfter = '3_days';
   final _followUpReason = TextEditingController();
 
+  // Step progress bar — one key per section so a tap can scroll straight to it, and a simple
+  // "has anything been entered here yet" check per step (not a saved/unsaved tri-state — the
+  // screen already has its own per-section Save buttons for that) drives which dot fills in.
+  final _vitalsKey = GlobalKey();
+  final _symptomsKey = GlobalKey();
+  final _examKey = GlobalKey();
+  final _diagnosisKey = GlobalKey();
+  final _labsKey = GlobalKey();
+  final _planKey = GlobalKey();
+  final _followUpKey = GlobalKey();
+
+  void _scrollToSection(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 320), curve: Curves.easeOut, alignment: 0.05);
+  }
+
   ApiClient get _api => context.read<AuthProvider>().api;
 
   @override
@@ -481,10 +497,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         ],
       ),
       body: Stack(children: [
-        ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-          children: [
-            _section('Vitals', Icons.monitor_heart_rounded, [
+        Column(children: [
+          _buildStepper(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+              children: [
+                _section('Vitals', Icons.monitor_heart_rounded, [
               if (_vitals.isNotEmpty) _latestVitalsRow(_vitals.first as Map<String, dynamic>),
               if (_vitals.isNotEmpty) const SizedBox(height: 10),
               Row(children: [
@@ -511,7 +530,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               ]),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : _saveVitals, child: const Text('Save vitals'))),
-            ]),
+            ], sectionKey: _vitalsKey),
             _section('Symptoms', Icons.sick_rounded, [
               TextField(controller: _chiefComplaint, decoration: const InputDecoration(labelText: 'Chief complaint')),
               const SizedBox(height: 8),
@@ -520,7 +539,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               Wrap(spacing: 7, runSpacing: 7, children: [for (final s in _commonSymptoms) _toggleChip(s, _symptoms.contains(s), () => setState(() => _symptoms.contains(s) ? _symptoms.remove(s) : _symptoms.add(s)))]),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : () => _saveNotes(), child: const Text('Save symptoms'))),
-            ]),
+            ], sectionKey: _symptomsKey),
             if (_visitHistory.isNotEmpty) _section('Previous history', Icons.history_rounded, [_previousHistorySnippet(_visitHistory.first as Map<String, dynamic>)]),
             _section('Clinical examination', Icons.fact_check_rounded, [
               const Text('GENERAL', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
@@ -544,7 +563,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               TextField(controller: _cns, decoration: const InputDecoration(labelText: 'CNS findings')),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : () => _saveNotes(), child: const Text('Save examination'))),
-            ]),
+            ], sectionKey: _examKey),
             _section('Diagnosis & medications', Icons.medication_rounded, [
               TextField(controller: _diagnosis, decoration: const InputDecoration(labelText: 'Diagnosis')),
               const SizedBox(height: 8),
@@ -558,7 +577,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     decoration: BoxDecoration(color: docSurfaceRaised, borderRadius: BorderRadius.circular(docRadiusSm)),
                     child: Row(children: [
                       Expanded(
-                        child: Text('${_lineItems[i]['name']} ${_lineItems[i]['strength'] ?? ''}\n${_lineItems[i]['dosage'] ?? ''} · ${_lineItems[i]['duration'] ?? ''}${(_lineItems[i]['instructions'] ?? '').isEmpty ? '' : ' · ${_lineItems[i]['instructions']}'}'
+                        child: Text(
+                            '${_lineItems[i]['name']} ${_lineItems[i]['strength'] ?? ''}\n${[
+                              if ((_lineItems[i]['duration'] ?? '').isNotEmpty) _lineItems[i]['duration'],
+                              if ((_lineItems[i]['instructions'] ?? '').isNotEmpty) _lineItems[i]['instructions'],
+                            ].join(' · ')}'
                                 .trim(),
                             style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                       ),
@@ -573,7 +596,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 const SizedBox(width: 8),
                 Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.description_outlined, size: 16), label: const Text('Load template'), onPressed: _loadPrescriptionTemplate)),
               ]),
-            ]),
+            ], sectionKey: _diagnosisKey),
             _section('Lab tests', Icons.science_rounded, [
               Row(children: [
                 Expanded(
@@ -615,7 +638,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 for (final o in _labOrders.cast<Map<String, dynamic>>())
                   Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('• ${(o['test_names'] as List).join(', ')}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
               ],
-            ]),
+            ], sectionKey: _labsKey),
             _section('Assessment & Plan', Icons.notes_rounded, [
               TextField(controller: _assessment, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes')),
               const SizedBox(height: 10),
@@ -624,7 +647,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               Wrap(spacing: 7, runSpacing: 7, children: [for (final a in _adviceOptions) _toggleChip(a, _advice.contains(a), () => setState(() => _advice.contains(a) ? _advice.remove(a) : _advice.add(a)))]),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : () => _saveNotes(), child: const Text('Save notes'))),
-            ]),
+            ], sectionKey: _planKey),
             _section('Follow-up', Icons.event_repeat_rounded, [
               Wrap(spacing: 7, runSpacing: 7, children: [
                 for (final o in const [('3_days', '3 days'), ('1_week', '1 week'), ('1_month', '1 month'), ('as_needed', 'As needed')])
@@ -634,10 +657,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               TextField(controller: _followUpReason, decoration: const InputDecoration(labelText: 'Follow-up reason')),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : _scheduleFollowUp, child: const Text('Schedule follow-up'))),
-            ]),
-            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _busy ? null : _issuePrescription, child: const Text('Sign & issue prescription'))),
-          ],
-        ),
+            ], sectionKey: _followUpKey),
+                SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _busy ? null : _issuePrescription, child: const Text('Sign & issue prescription'))),
+              ],
+            ),
+          ),
+        ]),
         Positioned(
           left: 0,
           right: 0,
@@ -700,7 +725,51 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         ),
       );
 
-  Widget _section(String title, IconData icon, List<Widget> children) => Padding(
+  Widget _buildStepper() {
+    final steps = <(String, GlobalKey, bool)>[
+      ('Vitals', _vitalsKey, _vitals.isNotEmpty || _bpSys.text.isNotEmpty || _pulse.text.isNotEmpty || _temp.text.isNotEmpty),
+      ('Symptoms', _symptomsKey, _chiefComplaint.text.isNotEmpty || _symptoms.isNotEmpty),
+      ('Exam', _examKey, _respiratory.isNotEmpty || _cardiovascular.text.isNotEmpty || _abdomen.text.isNotEmpty || _cns.text.isNotEmpty),
+      ('Diagnosis', _diagnosisKey, _diagnosis.text.isNotEmpty || _lineItems.isNotEmpty),
+      ('Labs', _labsKey, _selectedTests.isNotEmpty || _labOrders.isNotEmpty),
+      ('Plan', _planKey, _assessment.text.isNotEmpty || _advice.isNotEmpty),
+      ('Follow-up', _followUpKey, _followUpReason.text.isNotEmpty),
+    ];
+    return SizedBox(
+      height: 62,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        children: [
+          for (final (i, s) in steps.indexed)
+            InkWell(
+              borderRadius: BorderRadius.circular(docRadiusSm),
+              onTap: () => _scrollToSection(s.$2),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(color: s.$3 ? docSuccess : docSurfaceRaised, shape: BoxShape.circle),
+                    child: Center(
+                      child: s.$3
+                          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                          : Text('${i + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: docMuted)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(s.$1, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w600, color: s.$3 ? docSuccess : docMuted)),
+                ]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, IconData icon, List<Widget> children, {Key? sectionKey}) => Padding(
+        key: sectionKey,
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -716,10 +785,24 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   Future<void> _addMedicineSheet({Map<String, String>? existing, int? editIndex}) async {
     final name = TextEditingController(text: existing?['name'] ?? '');
     final strength = TextEditingController(text: existing?['strength'] ?? '');
-    final dosage = TextEditingController(text: existing?['dosage'] ?? '');
-    final duration = TextEditingController(text: existing?['duration'] ?? '');
     final times = <String>{for (final t in _kTimesOfDay) if ((existing?['frequency'] ?? '').contains(t)) t};
     String? foodTiming = existing?['instructions']?.isEmpty ?? true ? null : existing!['instructions'];
+
+    // Duration is a day-count (1-10) + unit dropdown by default, matching how most prescriptions
+    // are actually written; a free-text override covers anything that doesn't fit that shape
+    // (e.g. "until follow-up", "6 weeks") without forcing every duration through the dropdown.
+    final parsedDuration = _kDurationPattern.firstMatch(existing?['duration']?.trim() ?? '');
+    int durationCount = 7;
+    String durationUnit = 'Days';
+    bool useCustomDuration = false;
+    final customDuration = TextEditingController();
+    if (parsedDuration != null) {
+      durationCount = int.parse(parsedDuration.group(1)!).clamp(1, 10);
+      durationUnit = parsedDuration.group(2)!.toLowerCase().startsWith('month') ? 'Months' : 'Days';
+    } else if ((existing?['duration'] ?? '').isNotEmpty) {
+      useCustomDuration = true;
+      customDuration.text = existing!['duration']!;
+    }
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -734,14 +817,41 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               const SizedBox(height: 14),
               AutocompleteField(label: 'Medicine', options: kCommonMedicines, controller: name),
               const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: AutocompleteField(label: 'Strength', options: kCommonStrengths, controller: strength)),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: dosage, decoration: const InputDecoration(labelText: 'Dose'))),
-              ]),
-              const SizedBox(height: 8),
-              AutocompleteField(label: 'Duration', options: kDurationOptions, controller: duration),
+              AutocompleteField(label: 'Strength', options: kCommonStrengths, controller: strength),
               const SizedBox(height: 14),
+              const Text('DURATION', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+              const SizedBox(height: 8),
+              if (!useCustomDuration)
+                Row(children: [
+                  Expanded(
+                    flex: 6,
+                    child: DropdownButtonFormField<int>(
+                      initialValue: durationCount,
+                      decoration: const InputDecoration(labelText: 'Count'),
+                      items: [for (int i = 1; i <= 10; i++) DropdownMenuItem(value: i, child: Text('$i'))],
+                      onChanged: (v) => setSheetState(() => durationCount = v ?? durationCount),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 5,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: durationUnit,
+                      decoration: const InputDecoration(labelText: 'Unit'),
+                      items: const [DropdownMenuItem(value: 'Days', child: Text('Days')), DropdownMenuItem(value: 'Months', child: Text('Months'))],
+                      onChanged: (v) => setSheetState(() => durationUnit = v ?? durationUnit),
+                    ),
+                  ),
+                ]),
+              if (useCustomDuration) TextField(controller: customDuration, decoration: const InputDecoration(labelText: 'Custom duration', hintText: 'e.g. "6 weeks" or "until follow-up"')),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setSheetState(() => useCustomDuration = !useCustomDuration),
+                  child: Text(useCustomDuration ? 'Use day count instead' : 'Enter a custom duration instead'),
+                ),
+              ),
+              const SizedBox(height: 6),
               const Text('TIME OF DAY', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
               const SizedBox(height: 8),
               Wrap(spacing: 7, runSpacing: 7, children: [
@@ -764,12 +874,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       ),
     );
     if (saved == true && name.text.trim().isNotEmpty) {
+      final duration = useCustomDuration
+          ? customDuration.text.trim()
+          : '$durationCount ${durationUnit == 'Days' ? (durationCount == 1 ? 'Day' : 'Days') : (durationCount == 1 ? 'Month' : 'Months')}';
       final item = {
         'name': name.text.trim(),
         'strength': strength.text.trim(),
-        'dosage': dosage.text.trim(),
+        'dosage': '',
         'frequency': times.isEmpty ? '' : _kTimesOfDay.where(times.contains).join(', '),
-        'duration': duration.text.trim(),
+        'duration': duration,
         'instructions': foodTiming ?? '',
       };
       setState(() {
@@ -795,6 +908,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 }
 
 const _kTimesOfDay = ['Morning', 'Afternoon', 'Evening', 'Night', 'Bedtime'];
+final _kDurationPattern = RegExp(r'^(\d{1,2})\s*(day|days|month|months)$', caseSensitive: false);
 
 /// Small dot row showing which of the five times-of-day a medicine's frequency covers — parsed
 /// back out of the composed "Morning, Night" string rather than kept as a separate field, since

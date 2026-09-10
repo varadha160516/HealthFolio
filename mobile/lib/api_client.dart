@@ -283,6 +283,8 @@ class ApiClient {
 
   // --- Symptom intake agent ---
   Future<List<dynamic>> getSymptomEntries(String memberId) async => await _get('/members/$memberId/symptom-entries');
+  Future<List<dynamic>> getConsultationSymptomHistory(String memberId) async => await _get('/members/$memberId/consultation-symptom-history');
+  Future<List<dynamic>> getFamilyMedicationsToday() async => await _get('/family/medications-today');
   Future<Map<String, dynamic>> getSymptomEntry(String entryId) async => await _get('/symptom-entries/$entryId');
   Future<Map<String, dynamic>> startSymptomEntry(String memberId, String message) async =>
       await _post('/members/$memberId/symptom-entries', {'message': message});

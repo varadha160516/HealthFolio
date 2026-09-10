@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
 import '../theme.dart';
+import '../widgets/follow_up_timeline.dart';
 import 'prescription_view_screen.dart';
 
 class VisitSummaryScreen extends StatefulWidget {
@@ -76,24 +76,61 @@ class _VisitSummaryScreenState extends State<VisitSummaryScreen> {
               ),
             ]),
           ),
-          const SizedBox(height: 16),
-          DocCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (notes?['chief_complaint'] != null && (notes!['chief_complaint'] as String).isNotEmpty)
-                _row('Chief complaint', '${notes['chief_complaint']}${(notes['symptom_duration'] as String? ?? '').isNotEmpty ? ' · ${notes['symptom_duration']} duration' : ''}'),
-              if (symptoms.isNotEmpty) _row('Symptoms', symptoms.join(' · ')),
-              if (v != null) _row('Vitals', _vitalsLine(v)),
-              if (examLines.isNotEmpty) _row('Examination', examLines.join('\n')),
-              if (prescription?['diagnosis_text'] != null)
-                _row('Diagnosis', '${prescription!['diagnosis_text']}${prescription['icd_code'] != null ? ' · ICD-10: ${prescription['icd_code']}' : ''}'),
-              if (lineItems.isNotEmpty) _medicationsRow(lineItems),
-              if (labOrders.isNotEmpty)
-                _row('Lab tests', '${labOrders.expand((o) => (o['test_names'] as List)).join(' · ')}${indications.isNotEmpty ? '\nIndication: ${indications.join(', ')}' : ''}'),
-              if (notes?['assessment_notes'] != null && (notes!['assessment_notes'] as String).isNotEmpty) _row('Assessment & plan', notes['assessment_notes']),
-              if (advice.isNotEmpty) _row('Advice', advice.join(' · ')),
-              if (notes?['follow_up_after'] != null) _followUpRow(notes!['follow_up_after'] as String, notes['follow_up_reason'] as String?),
-            ]),
-          ),
+          const SizedBox(height: 18),
+          if (notes?['chief_complaint'] != null && (notes!['chief_complaint'] as String).isNotEmpty || symptoms.isNotEmpty)
+            _sectionLabel('Chief complaint & symptoms', Icons.sick_outlined),
+          if (notes?['chief_complaint'] != null && (notes!['chief_complaint'] as String).isNotEmpty || symptoms.isNotEmpty)
+            DocCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (notes?['chief_complaint'] != null && (notes!['chief_complaint'] as String).isNotEmpty)
+                  _row('Chief complaint', '${notes['chief_complaint']}${(notes['symptom_duration'] as String? ?? '').isNotEmpty ? ' · ${notes['symptom_duration']} duration' : ''}', last: symptoms.isEmpty),
+                if (symptoms.isNotEmpty) _row('Symptoms', symptoms.join(' · '), last: true),
+              ]),
+            ),
+          if (v != null || examLines.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _sectionLabel('Vitals & examination', Icons.monitor_heart_outlined),
+            DocCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (v != null) _row('Vitals', _vitalsLine(v), last: examLines.isEmpty),
+                if (examLines.isNotEmpty) _row('Examination', examLines.join('\n'), last: true),
+              ]),
+            ),
+          ],
+          if (prescription?['diagnosis_text'] != null || lineItems.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _sectionLabel('Diagnosis & medications', Icons.medication_outlined),
+            DocCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (prescription?['diagnosis_text'] != null)
+                  _row('Diagnosis', '${prescription!['diagnosis_text']}${prescription['icd_code'] != null ? ' · ICD-10: ${prescription['icd_code']}' : ''}', last: lineItems.isEmpty),
+                if (lineItems.isNotEmpty) _medicationsRow(lineItems),
+              ]),
+            ),
+          ],
+          if (labOrders.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _sectionLabel('Lab tests', Icons.science_outlined),
+            DocCard(
+              child: _row('Ordered', '${labOrders.expand((o) => (o['test_names'] as List)).join(' · ')}${indications.isNotEmpty ? '\nIndication: ${indications.join(', ')}' : ''}', last: true),
+            ),
+          ],
+          if ((notes?['assessment_notes'] != null && (notes!['assessment_notes'] as String).isNotEmpty) || advice.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _sectionLabel('Assessment & advice', Icons.notes_outlined),
+            DocCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (notes?['assessment_notes'] != null && (notes!['assessment_notes'] as String).isNotEmpty)
+                  _row('Assessment & plan', notes['assessment_notes'], last: advice.isEmpty),
+                if (advice.isNotEmpty) _row('Advice', advice.join(' · '), last: true),
+              ]),
+            ),
+          ],
+          if (notes?['follow_up_after'] != null) ...[
+            const SizedBox(height: 14),
+            _sectionLabel('Follow-up', Icons.event_repeat_outlined),
+            FollowUpTimeline(after: notes!['follow_up_after'] as String, reason: notes['follow_up_reason'] as String?),
+          ],
           const SizedBox(height: 20),
           if (prescription != null) ...[
             SizedBox(
@@ -186,47 +223,17 @@ class _VisitSummaryScreenState extends State<VisitSummaryScreen> {
     ]);
   }
 
-  String _followUpLabel(String v) => switch (v) {
-        '3_days' => '3 days',
-        '1_week' => '1 week',
-        '1_month' => '1 month',
-        _ => 'As needed',
-      };
+  Widget _sectionLabel(String label, IconData icon) => Padding(
+        padding: const EdgeInsets.only(bottom: 8, left: 2),
+        child: Row(children: [
+          Icon(icon, size: 14, color: docPrimary),
+          const SizedBox(width: 6),
+          Text(label.toUpperCase(), style: const TextStyle(fontSize: 10.5, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+        ]),
+      );
 
-  Widget _followUpRow(String after, String? reason) {
-    final start = DateTime.now();
-    DateTime? end;
-    if (after == '3_days') end = start.add(const Duration(days: 3));
-    if (after == '1_week') end = start.add(const Duration(days: 7));
-    if (after == '1_month') end = DateTime(start.year, start.month + 1, start.day);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('FOLLOW-UP', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-        const SizedBox(height: 3),
-        Text('${_followUpLabel(after)}${(reason ?? '').isNotEmpty ? ' · $reason' : ''}', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, height: 1.4)),
-        if (end != null) ...[
-          const SizedBox(height: 8),
-          Row(children: [
-            Text(DateFormat('d MMM').format(start), style: const TextStyle(fontSize: 10, color: docMuted)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Stack(clipBehavior: Clip.none, children: [
-                Container(height: 4, decoration: BoxDecoration(color: docBorder, borderRadius: BorderRadius.circular(3))),
-                Positioned(left: 0, top: -3, child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: docPrimary, shape: BoxShape.circle))),
-              ]),
-            ),
-            const SizedBox(width: 8),
-            Text(DateFormat('d MMM').format(end), style: const TextStyle(fontSize: 10, color: docMuted)),
-          ]),
-        ],
-      ]),
-    );
-  }
-
-  Widget _row(String k, String v) => Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+  Widget _row(String k, String v, {bool last = false}) => Padding(
+        padding: EdgeInsets.only(bottom: last ? 0 : 14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(k.toUpperCase(), style: const TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
           const SizedBox(height: 3),

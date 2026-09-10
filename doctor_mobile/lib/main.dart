@@ -18,7 +18,7 @@ class DoctorConsoleApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => AuthProvider(ApiClient()),
       child: MaterialApp(
-        title: 'Doctor Console',
+        title: 'ClinDesk',
         debugShowCheckedModeBanner: false,
         theme: docTheme(),
         home: const AuthGate(),

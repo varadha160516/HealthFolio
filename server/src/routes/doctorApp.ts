@@ -124,12 +124,17 @@ doctorAppRouter.post('/appointments/:id/lab-orders', requireAuth, requireRole('p
   if (!Array.isArray(test_names) || test_names.length === 0) return res.status(400).json({ error: 'test_names must be a non-empty array' });
   const member = db.prepare('SELECT family_id FROM members WHERE id = ?').get(appt.member_id) as { family_id: string } | undefined;
   if (!member) return res.status(404).json({ error: 'Member not found' });
+  // The member schedules collection themselves (see PATCH /lab-test-bookings/:id's 'pending_schedule'
+  // -> 'collection_scheduled' transition) — no booked_date/time_slot yet, so none is set here.
+  const clinicName = db
+    .prepare('SELECT c.name FROM providers p JOIN clinics c ON c.id = p.clinic_id WHERE p.id = ?')
+    .get(appt.provider_id) as { name: string } | undefined;
 
   const id = uuid();
   db.prepare(
     `INSERT INTO lab_test_bookings (id, family_id, member_id, test_names, lab_name, status, booked_date, ordered_by_provider_id, appointment_id, clinical_indication, created_at)
-     VALUES (?, ?, ?, ?, ?, 'collection_scheduled', ?, ?, ?, ?, ?)`
-  ).run(id, member.family_id, appt.member_id, JSON.stringify(test_names), lab_name ?? 'Clinic-affiliated lab', new Date().toISOString().slice(0, 10), appt.provider_id, appt.id, clinical_indication ?? null, now());
+     VALUES (?, ?, ?, ?, ?, 'pending_schedule', NULL, ?, ?, ?, ?)`
+  ).run(id, member.family_id, appt.member_id, JSON.stringify(test_names), lab_name ?? clinicName?.name ?? 'Lab test', appt.provider_id, appt.id, clinical_indication ?? null, now());
   res.status(201).json({ id });
 });
 

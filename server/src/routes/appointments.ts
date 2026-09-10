@@ -136,7 +136,7 @@ export function assertAppointmentVisible(req: any, res: any, appt: AppointmentRo
 
 function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean) {
   const grant = appt.consent_grant_id ? db.prepare('SELECT * FROM consent_grants WHERE id = ?').get(appt.consent_grant_id) : null;
-  const provider = db.prepare('SELECT * FROM providers WHERE id = ?').get(appt.provider_id);
+  const provider = db.prepare('SELECT p.*, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.id = ?').get(appt.provider_id);
   const member = db.prepare('SELECT id, name, dob, sex, blood_group FROM members WHERE id = ?').get(appt.member_id);
   const base: any = { ...appt, provider, member, consentGrant: grant };
   if (includeUnlockedData && grantsDataAccess(appt.status)) {

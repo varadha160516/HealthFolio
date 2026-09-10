@@ -190,12 +190,31 @@ class _HomeShellState extends State<HomeShell> {
     final id = appt['id'] as String;
     final providerName = appt['provider']?['name'] as String? ?? 'Your doctor';
     final scope = appt['consentGrant']?['scope'] as String? ?? 'full history';
+    final patientName = appt['member']?['name'] as String?;
     final approve = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Consent request'),
-        content: Text('$providerName is requesting $scope access for your current visit. Approve access?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (patientName != null && patientName.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(color: careloopAccentLight, borderRadius: BorderRadius.circular(careloopRadiusMd)),
+                child: Row(children: [
+                  const Text('For: ', style: TextStyle(fontSize: 13, color: careloopMuted, fontWeight: FontWeight.w600)),
+                  Expanded(child: Text(patientName, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: careloopAccentDark))),
+                ]),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Text('$providerName is requesting $scope access for your current visit. Approve access?'),
+          ],
+        ),
         actions: [
           OutlinedButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Deny')),
           ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Approve')),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
 import '../theme.dart';
+import '../widgets/follow_up_timeline.dart';
+import '../widgets/signature_pad.dart';
 
 /// A standalone, shareable-feeling view of a signed prescription — reached from Visit Summary.
 /// Deliberately does NOT re-fetch the patient's allergy/health record: once a visit is completed,
@@ -76,6 +77,8 @@ class _PrescriptionViewScreenState extends State<PrescriptionViewScreen> {
       );
     }
 
+    final issuedAt = prescription['issued_at'] != null ? DateTime.tryParse(prescription['issued_at'])?.toLocal() : null;
+
     return DocGradientScaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -84,133 +87,194 @@ class _PrescriptionViewScreenState extends State<PrescriptionViewScreen> {
         ]),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
         children: [
-          if (provider != null)
-            DocCard(
-              padding: const EdgeInsets.all(13),
-              child: Row(children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(color: docAccentLight, borderRadius: BorderRadius.circular(9)),
-                  child: const Icon(Icons.local_hospital_rounded, size: 16, color: docPrimary),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(provider['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-                    if (provider['specialty'] != null) Text(provider['specialty'], style: const TextStyle(fontSize: 10.5, color: docMuted)),
+          // One continuous letterhead document instead of many small disconnected cards — the
+          // Rx (medications) section is the visual hero, everything else reads as supporting detail.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(docRadiusMd),
+            child: Container(
+              decoration: BoxDecoration(color: Colors.white, boxShadow: docRaisedShadow),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(height: 5, decoration: const BoxDecoration(gradient: LinearGradient(colors: docPrimaryGradient))),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Row(children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(gradient: const LinearGradient(colors: docPrimaryGradient), borderRadius: BorderRadius.circular(13)),
+                      child: Center(child: Text(_initials(provider?['name'] as String? ?? '?'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15))),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(provider?['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                        Text(
+                          [provider?['specialty'], provider?['clinic_name']].where((v) => v != null && (v as String).isNotEmpty).join(' · '),
+                          style: const TextStyle(fontSize: 10.5, color: docMuted),
+                        ),
+                        if ((provider?['registration_number'] as String? ?? '').isNotEmpty)
+                          Text('Reg. No. ${provider!['registration_number']}', style: const TextStyle(fontSize: 9, color: docMutedDim, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                    if (issuedAt != null)
+                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        const Text('PRESCRIPTION', style: TextStyle(fontSize: 8.5, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+                        const SizedBox(height: 2),
+                        Text('${issuedAt.day}/${issuedAt.month}/${issuedAt.year}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: docAccentDark)),
+                      ]),
                   ]),
                 ),
-              ]),
-            ),
-          const SizedBox(height: 12),
-          Row(children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: const BoxDecoration(gradient: LinearGradient(colors: docPrimaryGradient), shape: BoxShape.circle),
-              child: Center(child: Text(_initials(member?['name'] ?? '?'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13))),
-            ),
-            const SizedBox(width: 11),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${member?['name'] ?? ''}${age != null ? ' · $age${sex != null && sex.isNotEmpty ? sex[0].toUpperCase() : ''}' : ''}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              if (prescription['issued_at'] != null) Text('Issued ${DateTime.tryParse(prescription['issued_at'])?.toLocal().toString().substring(0, 16) ?? ''}', style: const TextStyle(fontSize: 10.5, color: docMuted)),
-            ]),
-          ]),
-          const SizedBox(height: 18),
-          if ((notes?['chief_complaint'] as String? ?? '').isNotEmpty || symptoms.isNotEmpty) ...[
-            const Text('CHIEF COMPLAINT', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(
-              padding: const EdgeInsets.all(13),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if ((notes?['chief_complaint'] as String? ?? '').isNotEmpty)
-                  Text(
-                    '${notes!['chief_complaint']}${(notes['symptom_duration'] as String? ?? '').isNotEmpty ? ' · ${notes['symptom_duration']} duration' : ''}',
-                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                  ),
-                if (symptoms.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(symptoms.join(' · '), style: const TextStyle(fontSize: 12.5, color: docMuted)),
-                ],
-              ]),
-            ),
-            const SizedBox(height: 18),
-          ],
-          if (v != null) ...[
-            const Text('VITALS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(padding: const EdgeInsets.all(13), child: Text(_vitalsLine(v), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-            const SizedBox(height: 18),
-          ],
-          if (prescription['diagnosis_text'] != null) ...[
-            const Text('DIAGNOSIS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(
-              padding: const EdgeInsets.all(13),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(prescription['diagnosis_text'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                if (prescription['icd_code'] != null) Text('ICD-10: ${prescription['icd_code']}', style: const TextStyle(fontSize: 10.5, color: docMuted)),
-              ]),
-            ),
-            const SizedBox(height: 18),
-          ],
-          const Text('MEDICATIONS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-          const SizedBox(height: 6),
-          DocCard(
-            padding: const EdgeInsets.all(13),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              for (int i = 0; i < lineItems.length; i++)
+                const Divider(height: 1, color: docBorder),
                 Container(
-                  margin: EdgeInsets.only(top: i == 0 ? 0 : 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                  decoration: BoxDecoration(color: docAccentLight, borderRadius: BorderRadius.circular(docRadiusSm)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(
-                        child: Text('${lineItems[i]['medicine_name']}${(lineItems[i]['strength'] as String? ?? '').isNotEmpty ? ' ${lineItems[i]['strength']}' : ''}',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                      ),
-                      _timeDots(lineItems[i]['frequency'] as String?),
-                    ]),
-                    Text(
-                      [lineItems[i]['dosage'], lineItems[i]['frequency'], lineItems[i]['duration'], lineItems[i]['instructions']].where((x) => x != null && (x as String).isNotEmpty).join(' · '),
-                      style: const TextStyle(fontSize: 11.5, color: docMuted),
+                  color: docSurfaceRaised,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: Center(child: Text(_initials(member?['name'] as String? ?? '?'), style: const TextStyle(color: docAccentDark, fontWeight: FontWeight.w700, fontSize: 12))),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(member?['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        Text('${age != null ? '$age yrs' : ''}${sex != null && sex.isNotEmpty ? ' · ${sex[0].toUpperCase()}${sex.substring(1)}' : ''}', style: const TextStyle(fontSize: 10.5, color: docMuted)),
+                      ]),
                     ),
                   ]),
                 ),
-            ]),
+                if ((notes?['chief_complaint'] as String? ?? '').isNotEmpty || symptoms.isNotEmpty || v != null || prescription['diagnosis_text'] != null)
+                  _infoGrid([
+                    if ((notes?['chief_complaint'] as String? ?? '').isNotEmpty || symptoms.isNotEmpty)
+                      _infoCell(
+                          'Chief complaint',
+                          '${notes?['chief_complaint'] ?? symptoms.join(', ')}${(notes?['symptom_duration'] as String? ?? '').isNotEmpty ? ' · ${notes!['symptom_duration']}' : ''}'),
+                    if (v != null) _infoCell('Vitals', _vitalsLine(v)),
+                    if (prescription['diagnosis_text'] != null)
+                      _infoCell('Diagnosis', '${prescription['diagnosis_text']}${prescription['icd_code'] != null ? '  ·  ICD-10 ${prescription['icd_code']}' : ''}', full: true),
+                  ]),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                  child: Row(children: [
+                    Text('℞', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: docAccentDark, fontStyle: FontStyle.italic)),
+                    const SizedBox(width: 8),
+                    const Text('Medications', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    Text('${lineItems.length} item${lineItems.length == 1 ? '' : 's'}', style: const TextStyle(fontSize: 10, color: docMuted, fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+                for (int i = 0; i < lineItems.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Container(
+                        width: 20,
+                        height: 20,
+                        margin: const EdgeInsets.only(top: 1),
+                        decoration: BoxDecoration(color: docAccentLight, shape: BoxShape.circle),
+                        child: Center(child: Text('${i + 1}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: docAccentDark))),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text.rich(TextSpan(children: [
+                            TextSpan(text: lineItems[i]['medicine_name'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: docTextPrimary)),
+                            if ((lineItems[i]['strength'] as String? ?? '').isNotEmpty)
+                              TextSpan(text: '  ${lineItems[i]['strength']}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: docMuted)),
+                          ])),
+                          const SizedBox(height: 5),
+                          Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                            if ((lineItems[i]['duration'] as String? ?? '').isNotEmpty) _medTag(lineItems[i]['duration']),
+                            if ((lineItems[i]['instructions'] as String? ?? '').isNotEmpty) _medTag(lineItems[i]['instructions']),
+                            _timeDots(lineItems[i]['frequency'] as String?),
+                          ]),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                if (labOrders.isNotEmpty) _docSection('Investigations ordered', Text(labOrders.expand((o) => (o['test_names'] as List)).join(' · '), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
+                if (advice.isNotEmpty)
+                  _docSection(
+                    'Advice',
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [for (final a in advice) Padding(padding: const EdgeInsets.only(bottom: 3), child: Text('•  $a', style: const TextStyle(fontSize: 12.5, height: 1.5)))]),
+                  ),
+                if ((notes?['assessment_notes'] as String? ?? '').isNotEmpty)
+                  _docSection('Assessment & next steps', Text(notes!['assessment_notes'], style: const TextStyle(fontSize: 12.5, height: 1.5))),
+                if (notes?['follow_up_after'] != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('FOLLOW-UP', style: TextStyle(fontSize: 9, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4))),
+                      FollowUpTimeline(after: notes!['follow_up_after'] as String, reason: notes['follow_up_reason'] as String?),
+                    ]),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(
+                      child: Text(
+                        'This is a digitally generated prescription issued via ClinDesk. Valid without a physical signature.',
+                        style: const TextStyle(fontSize: 8.5, color: docMutedDim, height: 1.4),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      if ((provider?['signature_base64'] as String? ?? '').isNotEmpty)
+                        SignaturePreview(base64Png: provider!['signature_base64'] as String)
+                      else
+                        Text(provider?['name'] ?? '', style: const TextStyle(fontFamily: 'Georgia', fontStyle: FontStyle.italic, fontSize: 18, color: docAccentDark)),
+                      Container(margin: const EdgeInsets.only(top: 2), width: 90, height: 1, color: docTextPrimary),
+                      const SizedBox(height: 4),
+                      Text(provider?['name'] ?? '', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700)),
+                    ]),
+                  ]),
+                ),
+              ]),
+            ),
           ),
-          if (labOrders.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            const Text('INVESTIGATIONS ORDERED', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(padding: const EdgeInsets.all(13), child: Text(labOrders.expand((o) => (o['test_names'] as List)).join(' · '), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-          ],
-          if (advice.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            const Text('ADVICE', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(padding: const EdgeInsets.all(13), child: Text(advice.join(' · '), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-          ],
-          if ((notes?['assessment_notes'] as String? ?? '').isNotEmpty) ...[
-            const SizedBox(height: 18),
-            const Text('ASSESSMENT & NEXT STEPS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(padding: const EdgeInsets.all(13), child: Text(notes!['assessment_notes'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-          ],
-          if (notes?['follow_up_after'] != null) ...[
-            const SizedBox(height: 18),
-            const Text('FOLLOW-UP', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            DocCard(padding: const EdgeInsets.all(13), child: _followUpContent(notes!['follow_up_after'] as String, notes['follow_up_reason'] as String?)),
-          ],
         ],
       ),
     );
   }
+
+  Widget _infoGrid(List<Widget> cells) {
+    final rows = <Widget>[];
+    for (var i = 0; i < cells.length; i += 2) {
+      rows.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: cells[i]), if (i + 1 < cells.length) Expanded(child: cells[i + 1])]));
+    }
+    return Column(children: rows);
+  }
+
+  Widget _infoCell(String label, String value, {bool full = false}) => Container(
+        width: full ? double.infinity : null,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        decoration: const BoxDecoration(border: Border(top: BorderSide(color: docBorder))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), style: const TextStyle(fontSize: 8.5, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+          const SizedBox(height: 3),
+          Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, height: 1.35)),
+        ]),
+      );
+
+  Widget _medTag(String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(color: docSurfaceRaised, borderRadius: BorderRadius.circular(8)),
+        child: Text(text, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: docTextPrimary)),
+      );
+
+  Widget _docSection(String label, Widget child) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: const BoxDecoration(border: Border(top: BorderSide(color: docBorder))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), style: const TextStyle(fontSize: 9, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          const SizedBox(height: 8),
+          child,
+        ]),
+      );
 
   String _vitalsLine(Map<String, dynamic> v) {
     final parts = <String>[];
@@ -222,40 +286,6 @@ class _PrescriptionViewScreenState extends State<PrescriptionViewScreen> {
     if (v['weight_kg'] != null) parts.add('Weight ${v['weight_kg']} kg');
     if (v['height_cm'] != null) parts.add('Height ${v['height_cm']} cm');
     return parts.isEmpty ? 'No vitals recorded' : parts.join(' · ');
-  }
-
-  String _followUpLabel(String v) => switch (v) {
-        '3_days' => '3 days',
-        '1_week' => '1 week',
-        '1_month' => '1 month',
-        _ => 'As needed',
-      };
-
-  Widget _followUpContent(String after, String? reason) {
-    final start = DateTime.now();
-    DateTime? end;
-    if (after == '3_days') end = start.add(const Duration(days: 3));
-    if (after == '1_week') end = start.add(const Duration(days: 7));
-    if (after == '1_month') end = DateTime(start.year, start.month + 1, start.day);
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('${_followUpLabel(after)}${(reason ?? '').isNotEmpty ? ' · $reason' : ''}', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-      if (end != null) ...[
-        const SizedBox(height: 8),
-        Row(children: [
-          Text(DateFormat('d MMM').format(start), style: const TextStyle(fontSize: 10, color: docMuted)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Stack(clipBehavior: Clip.none, children: [
-              Container(height: 4, decoration: BoxDecoration(color: docBorder, borderRadius: BorderRadius.circular(3))),
-              Positioned(left: 0, top: -3, child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: docPrimary, shape: BoxShape.circle))),
-            ]),
-          ),
-          const SizedBox(width: 8),
-          Text(DateFormat('d MMM').format(end), style: const TextStyle(fontSize: 10, color: docMuted)),
-        ]),
-      ],
-    ]);
   }
 
   String _initials(String name) {

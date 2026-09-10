@@ -306,6 +306,7 @@ export function runMigrations(db: Db) {
   // from a real category list. Adds the rest idempotently (INSERT OR IGNORE by id) rather than
   // re-running seedLabTestCatalog, which no-ops once the table is non-empty.
   expandLabTestCatalog(db);
+  migrateLabTestBookingsAllowPendingSchedule(db);
 }
 
 /** Best-effort backfill by display_name pattern, not a hand-curated per-row mapping — the
@@ -483,4 +484,45 @@ function migrateLabTestBookingsAllowCancelled(db: Db) {
   `);
   db.exec('PRAGMA foreign_keys = ON');
   console.log("migrated: lab_test_bookings.status CHECK constraint now allows 'cancelled'");
+}
+
+/** Same rebuild pattern again — a doctor-ordered lab test now starts life unscheduled (the member
+ * has to pick a collection date/slot themselves, via "Schedule"), so 'pending_schedule' joins the
+ * CHECK constraint and booked_date drops its NOT NULL (nothing is booked yet at that point). Runs
+ * after the ordered_by_provider_id/appointment_id/clinical_indication ensureColumn calls above so
+ * the rebuild's column list can already include them. */
+function migrateLabTestBookingsAllowPendingSchedule(db: Db) {
+  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'lab_test_bookings'`).get() as { sql: string } | undefined;
+  if (!row) return; // table doesn't exist yet — schema.sql will create it correctly
+  if (row.sql.includes("'pending_schedule'")) return; // already migrated
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE lab_test_bookings_migrated (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL REFERENCES families(id),
+      member_id TEXT REFERENCES members(id),
+      guest_name TEXT,
+      guest_age INTEGER,
+      guest_mobile TEXT,
+      test_names TEXT NOT NULL,
+      lab_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'collection_scheduled' CHECK (status IN ('pending_schedule','collection_scheduled','processing','report_ready','cancelled')),
+      booked_date TEXT,
+      time_slot TEXT,
+      document_id TEXT REFERENCES documents(id),
+      ordered_by_provider_id TEXT REFERENCES providers(id),
+      appointment_id TEXT REFERENCES appointments(id),
+      clinical_indication TEXT,
+      created_at TEXT NOT NULL
+    );
+    INSERT INTO lab_test_bookings_migrated (id, family_id, member_id, guest_name, guest_age, guest_mobile, test_names, lab_name, status, booked_date, time_slot, document_id, ordered_by_provider_id, appointment_id, clinical_indication, created_at)
+      SELECT id, family_id, member_id, guest_name, guest_age, guest_mobile, test_names, lab_name, status, booked_date, time_slot, document_id, ordered_by_provider_id, appointment_id, clinical_indication, created_at FROM lab_test_bookings;
+    DROP TABLE lab_test_bookings;
+    ALTER TABLE lab_test_bookings_migrated RENAME TO lab_test_bookings;
+    CREATE INDEX IF NOT EXISTS idx_lab_test_bookings_member ON lab_test_bookings (member_id);
+    CREATE INDEX IF NOT EXISTS idx_lab_test_bookings_family ON lab_test_bookings (family_id);
+  `);
+  db.exec('PRAGMA foreign_keys = ON');
+  console.log("migrated: lab_test_bookings.status CHECK constraint now allows 'pending_schedule'; booked_date is nullable");
 }

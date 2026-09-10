@@ -123,7 +123,7 @@ class _HealthAnalysisTabState extends State<HealthAnalysisTab> {
           else if (_data!['document1'] == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
-              child: EmptyState(icon: Icons.compare_arrows_rounded, message: 'Nothing to compare yet — a second report sharing results with this one will unlock this view.'),
+              child: EmptyState(icon: Icons.compare_arrows_rounded, message: 'No records to compare'),
             )
           else
             _PopulatedView(data: _data!, memberId: widget.memberId),

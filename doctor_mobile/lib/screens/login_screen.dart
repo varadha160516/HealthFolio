@@ -44,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.medical_services_rounded, color: Colors.white, size: 30),
               ),
               const SizedBox(height: 18),
-              Text('Doctor Console', style: docPageTitle().copyWith(fontSize: 27)),
+              Text('ClinDesk', style: docPageTitle().copyWith(fontSize: 27)),
               const SizedBox(height: 4),
               const Text('Sign in with your clinic credentials', style: TextStyle(color: docMuted, fontSize: 13.5)),
               const SizedBox(height: 30),

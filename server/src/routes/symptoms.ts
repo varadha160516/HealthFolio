@@ -41,6 +41,28 @@ symptomsRouter.get('/members/:id/symptom-entries', requireAuth, (req, res) => {
   res.json(rows);
 });
 
+// Doctor-entered symptom/chief-complaint history from past consultations — a separate store from
+// the member's own symptom_entries (self-logged via the intake agent), surfaced here read-only so
+// the Symptoms tab can show one merged, source-tagged history without the two stores merging data.
+symptomsRouter.get('/members/:id/consultation-symptom-history', requireAuth, (req, res) => {
+  if (!assertFamilyAccess(req, res, req.params.id)) return;
+  const rows = db
+    .prepare(
+      `SELECT cn.appointment_id, cn.chief_complaint, cn.symptom_duration, cn.symptoms, cn.created_at, a.datetime AS visit_datetime, p.name AS provider_name
+       FROM consultation_notes cn
+       JOIN appointments a ON a.id = cn.appointment_id
+       JOIN providers p ON p.id = cn.provider_id
+       WHERE cn.member_id = ? AND (cn.chief_complaint IS NOT NULL OR cn.symptoms IS NOT NULL)
+       ORDER BY cn.created_at DESC`
+    )
+    .all(req.params.id) as any[];
+  res.json(
+    rows
+      .map((r) => ({ ...r, symptoms: r.symptoms ? JSON.parse(r.symptoms) : [] }))
+      .filter((r) => (r.chief_complaint && r.chief_complaint.trim()) || r.symptoms.length > 0)
+  );
+});
+
 symptomsRouter.get('/symptom-entries/:id', requireAuth, (req, res) => {
   const entry = assertEntryAccess(req, res, req.params.id);
   if (!entry) return;

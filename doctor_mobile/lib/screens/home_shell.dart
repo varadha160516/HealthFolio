@@ -34,7 +34,7 @@ class _HomeShellState extends State<HomeShell> {
             child: const Icon(Icons.medical_services_rounded, color: Colors.white, size: 16),
           ),
           const SizedBox(width: 9),
-          Text('Doctor Console', style: docSectionHeading().copyWith(fontSize: 18)),
+          Text('ClinDesk', style: docSectionHeading().copyWith(fontSize: 18)),
         ]),
         actions: [
           IconButton(

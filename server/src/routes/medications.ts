@@ -19,6 +19,27 @@ function parseTimes(row: any): string[] {
   }
 }
 
+/** Today's scheduled dose slots for one member, expanded from each active schedule's own times —
+ * the shared core of both GET /members/:id/medications/today and the family-wide reminders card
+ * below. */
+function expandScheduledToday(memberId: string) {
+  const { date, time, weekday } = todayParts();
+  const schedules = db.prepare("SELECT * FROM medication_schedules WHERE member_id = ? AND status = 'active'").all(memberId) as any[];
+  const logStmt = db.prepare('SELECT * FROM medication_dose_logs WHERE schedule_id = ? AND dose_date = ? AND (dose_time = ? OR (dose_time IS NULL AND ? IS NULL))');
+
+  const scheduled: any[] = [];
+  for (const s of schedules) {
+    if (s.frequency === 'as_needed') continue; // no fixed time to remind against
+    if (s.frequency === 'weekly' && s.day_of_week !== weekday) continue;
+    for (const t of parseTimes(s)) {
+      const log = logStmt.get(s.id, date, t, t) as any;
+      const status = log ? log.status : t <= time ? 'due' : 'upcoming';
+      scheduled.push({ schedule_id: s.id, medicine_name: s.medicine_name, strength: s.strength, dose_amount: s.dose_amount, time: t, status });
+    }
+  }
+  return scheduled;
+}
+
 /** List of every member's schedules, raw — Active/History/Cabinet bucketing happens client-side
  * (same pattern as the Documents tab's category grid), since "active" here just means
  * status = 'active' and the client already needs to group by frequency too. */
@@ -60,6 +81,17 @@ medicationsRouter.get('/members/:id/medications/today', requireAuth, (req, res) 
 
   scheduled.sort((a, b) => a.time.localeCompare(b.time));
   res.json({ date, scheduled, prn });
+});
+
+// Home Screen's "Medication reminders" card — today's due/upcoming doses across every member in
+// the family, not just one. Taken/skipped doses are left out; this is a reminder list, not a log.
+medicationsRouter.get('/family/medications-today', requireAuth, (req, res) => {
+  const members = db.prepare('SELECT id, name FROM members WHERE family_id = ? AND archived_at IS NULL').all(req.session!.familyId) as { id: string; name: string }[];
+  const reminders = members
+    .flatMap((m) => expandScheduledToday(m.id).map((d) => ({ ...d, member_id: m.id, member_name: m.name })))
+    .filter((d) => d.status === 'due' || d.status === 'upcoming');
+  reminders.sort((a, b) => a.time.localeCompare(b.time));
+  res.json(reminders);
 });
 
 medicationsRouter.get('/medications/:id', requireAuth, (req, res) => {

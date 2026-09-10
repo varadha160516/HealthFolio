@@ -15,6 +15,7 @@ class AppointmentsListScreen extends StatefulWidget {
 class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
   List<dynamic>? _appointments;
   String _filter = 'all';
+  final _search = TextEditingController();
 
   @override
   void initState() {
@@ -45,6 +46,14 @@ class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
         list = list.where((a) => a['is_follow_up'] == 1).toList();
         break;
     }
+    final query = _search.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      list = list.where((a) {
+        final name = ((a['member'] as Map<String, dynamic>?)?['name'] as String? ?? '').toLowerCase();
+        final reason = (a['reason_for_visit'] as String? ?? '').toLowerCase();
+        return name.contains(query) || reason.contains(query);
+      }).toList();
+    }
     list.sort((a, b) => (b['datetime'] as String).compareTo(a['datetime'] as String));
     return list;
   }
@@ -61,6 +70,20 @@ class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, docFabClearance),
         children: [
           Text('Appointments', style: docSectionHeading().copyWith(fontSize: 21)),
+          const SizedBox(height: 2),
+          Text('${_appointments!.length} total', style: const TextStyle(color: docMuted, fontSize: 11.5)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Search patient or reason…',
+              prefixIcon: const Icon(Icons.search_rounded, size: 19),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => setState(() => _search.clear())),
+            ),
+          ),
           const SizedBox(height: 12),
           SizedBox(
             height: 34,

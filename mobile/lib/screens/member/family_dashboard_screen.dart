@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../auth_provider.dart';
 import '../../theme.dart';
 import '../../utils/blood_groups.dart';
+import '../../utils/medication_schedule_infer.dart';
 import '../../utils/motion.dart';
 import '../../utils/text_case.dart';
 import '../../widgets/section_card.dart';
@@ -23,6 +24,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   List<dynamic>? _members;
   List<dynamic>? _reminders;
   bool _remindersLoading = false;
+  List<dynamic>? _medReminders;
   bool _showAdd = false;
   final _name = TextEditingController();
   final _dob = TextEditingController();
@@ -53,6 +55,20 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     });
     if (mounted) setState(() => _members = members);
     _loadReminders();
+    _loadMedReminders();
+  }
+
+  /// Today's due/upcoming doses across the whole family — shown on Home so a reminder doesn't
+  /// require opening each member's Medications tab individually. Fails silently, same reasoning
+  /// as the care-coordinator reminders above: nice-to-have, never blocks the dashboard.
+  Future<void> _loadMedReminders() async {
+    try {
+      final api = context.read<AuthProvider>().api;
+      final r = await api.getFamilyMedicationsToday();
+      if (mounted) setState(() => _medReminders = r);
+    } catch (_) {
+      // silent — see doc comment above
+    }
   }
 
   /// Family care-coordinator agent (Roadmap Section 2.3) — fetched separately and never blocks
@@ -202,6 +218,33 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 ),
               ),
             ),
+          // Medication reminders — today's due/upcoming doses across the family, moved here from
+          // the Medications tab so a member sees what's due without opening each person's tab.
+          if (_medReminders?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: GlassPane(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.medication_rounded, size: 16, color: careloopAccent),
+                      const SizedBox(width: 8),
+                      Text('Medication reminders', style: careloopSectionHeading()),
+                    ]),
+                    const SizedBox(height: 10),
+                    Column(
+                      children: [
+                        for (final (i, r) in _medReminders!.cast<Map<String, dynamic>>().indexed) ...[
+                          if (i > 0) const SizedBox(height: 10),
+                          _MedReminderTile(reminder: r),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_showAdd)
             SectionCard(
               title: 'Add a dependent',
@@ -328,6 +371,43 @@ class _AddButton extends StatelessWidget {
           const SizedBox(width: 4),
           Text(showing ? 'Cancel' : 'Add', style: TextStyle(color: showing ? careloopMuted : careloopOnSage, fontWeight: FontWeight.w500, fontSize: 13.5)),
         ]),
+      ),
+    );
+  }
+}
+
+/// One due/upcoming dose from GET /family/medications-today — tinted by whether it's already due
+/// (red) or still coming up later today (blue), same solid-pill color language as the rest of the
+/// dashboard's tiles.
+class _MedReminderTile extends StatelessWidget {
+  final Map<String, dynamic> reminder;
+  const _MedReminderTile({required this.reminder});
+
+  @override
+  Widget build(BuildContext context) {
+    final due = reminder['status'] == 'due';
+    final fg = due ? careloopDanger : careloopInfo;
+    final bg = due ? careloopAbnormalBg : careloopNewBg;
+    final dose = [reminder['medicine_name'], reminder['dose_amount']].where((v) => v != null && (v as String).isNotEmpty).join(' — ');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(careloopRadiusSm)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.medication_rounded, size: 17, color: fg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${reminder['member_name']} — $dose', style: TextStyle(color: fg, fontSize: 13.5, height: 1.4, fontWeight: FontWeight.w600)),
+                Text(due ? 'Due ${formatTime(reminder['time'] as String)}' : formatTime(reminder['time'] as String), style: TextStyle(color: fg.withValues(alpha: 0.8), fontSize: 11.5)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

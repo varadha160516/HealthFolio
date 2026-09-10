@@ -68,7 +68,7 @@ class _VitalsTabState extends State<VitalsTab> {
                     Padding(
                       padding: const EdgeInsets.only(left: 2, bottom: 4),
                       child: Text(
-                        latest != null ? 'Last updated: ${_formatWhen(latest['recorded_at'] as String)}' : 'No vitals recorded yet',
+                        latest != null ? 'Last updated: ${_formatWhen(latest['recorded_at'] as String)} · ${_source(latest)}' : 'No vitals recorded yet',
                         style: const TextStyle(color: careloopMuted, fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -115,9 +115,49 @@ class _VitalsTabState extends State<VitalsTab> {
             ),
             const SizedBox(height: 16),
             _buildGrowthPercentileCard(),
+            const SizedBox(height: 16),
+            _buildHistory(),
           ],
         ],
       ),
+    );
+  }
+
+  static String _source(Map<String, dynamic> entry) => entry['appointment_id'] != null ? 'via Dr. console' : 'Manual entry';
+
+  Widget _buildHistory() {
+    final entries = _entries!.cast<Map<String, dynamic>>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionCaption('History', icon: Icons.history_rounded),
+        Container(
+          decoration: BoxDecoration(color: careloopSurface, borderRadius: BorderRadius.circular(careloopRadiusMd), border: careloopCardBorder, boxShadow: careloopCardShadow),
+          child: Column(
+            children: [
+              for (final (i, e) in entries.indexed) ...[
+                if (i > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                  child: Row(children: [
+                    Icon(e['appointment_id'] != null ? Icons.medical_services_outlined : Icons.person_outline_rounded, size: 15, color: careloopMuted),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_formatWhen(e['recorded_at'] as String), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
+                          Text(_source(e), style: const TextStyle(color: careloopMuted, fontSize: 10.5)),
+                        ],
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 

@@ -76,16 +76,23 @@ labTestsRouter.patch('/lab-test-bookings/:id', requireAuth, (req, res) => {
   if (!assertBookingFamilyAccess(req, res, booking)) return;
 
   const { status, document_id, booked_date, time_slot } = req.body ?? {};
-  // Reschedule (booked_date/time_slot) and cancel are only meaningful before collection has
-  // happened — once a sample's been collected the booking is on its way to a report and calling
-  // it off or moving the date no longer makes sense.
-  if ((status === 'cancelled' || booked_date !== undefined || time_slot !== undefined) && booking.status !== 'collection_scheduled') {
+  // Scheduling (pending_schedule -> collection_scheduled), rescheduling (booked_date/time_slot)
+  // and cancelling are only meaningful before collection has happened — once a sample's been
+  // collected the booking is on its way to a report and calling it off or moving the date no
+  // longer makes sense.
+  const schedulable = booking.status === 'pending_schedule' || booking.status === 'collection_scheduled';
+  if ((status === 'cancelled' || booked_date !== undefined || time_slot !== undefined) && !schedulable) {
     return res.status(409).json({ error: `Cannot reschedule or cancel a booking that's ${booking.status.replace(/_/g, ' ')}` });
+  }
+  // The first "Schedule" action (pending_schedule -> collection_scheduled) must land with a real
+  // date — otherwise the booking would show as scheduled with nothing actually booked.
+  if (status === 'collection_scheduled' && booking.status === 'pending_schedule' && !(booked_date !== undefined && time_slot !== undefined)) {
+    return res.status(400).json({ error: 'booked_date and time_slot are required to schedule this test' });
   }
   const updates: string[] = [];
   const values: any[] = [];
   if (status !== undefined) {
-    if (!['collection_scheduled', 'processing', 'report_ready', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    if (!['pending_schedule', 'collection_scheduled', 'processing', 'report_ready', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
     updates.push('status = ?');
     values.push(status);
   }

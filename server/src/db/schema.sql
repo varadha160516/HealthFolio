@@ -269,8 +269,11 @@ CREATE TABLE IF NOT EXISTS lab_test_bookings (
   guest_mobile TEXT,
   test_names TEXT NOT NULL, -- JSON array of test names, as booked
   lab_name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'collection_scheduled' CHECK (status IN ('collection_scheduled','processing','report_ready','cancelled')),
-  booked_date TEXT NOT NULL,
+  -- 'pending_schedule' is a doctor-ordered test the member hasn't picked a collection date/slot
+  -- for yet — a self-service booking skips straight to 'collection_scheduled' since the member
+  -- already chose a date/time as part of booking it.
+  status TEXT NOT NULL DEFAULT 'collection_scheduled' CHECK (status IN ('pending_schedule','collection_scheduled','processing','report_ready','cancelled')),
+  booked_date TEXT, -- null while 'pending_schedule'
   time_slot TEXT, -- e.g. "07:00-09:00" — the member's chosen collection window
   -- Set once a report is attached — the report itself is a normal documents row (document_type =
   -- 'lab_report'), created via the existing upload+extraction pipeline, just linked back here.

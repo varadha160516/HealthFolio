@@ -1,8 +1,5 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../../../api_client.dart';
 import '../../../auth_provider.dart';
 import '../../../theme.dart';
 import '../../../utils/motion.dart';
@@ -10,18 +7,18 @@ import '../../../widgets/empty_state.dart';
 import '../../../widgets/section_card.dart';
 import 'document_viewer_screen.dart';
 
-const _kRescheduleSlots = <(String, String)>[
+const _kSlots = <(String, String)>[
   ('07:00-09:00', '7:00 – 9:00 AM'),
   ('09:00-11:00', '9:00 – 11:00 AM'),
   ('16:00-18:00', '4:00 – 6:00 PM'),
 ];
 
 /// Per-member Lab Tests tab (request: "displayed in the family screen of member for whom it's
-/// booked, in a new left panel tab"). The auto-file-to-Documents behavior is real, not simulated:
-/// attaching a report uploads it through the existing document/extraction pipeline
-/// (document_type='lab_report'), then links the resulting document back to this booking — the
-/// same document immediately shows up in that member's real Documents tab, Lab Reports category,
-/// no separate copy.
+/// booked, in a new left panel tab"). A booking now moves through a real status machine:
+/// pending_schedule (doctor-ordered, no date/slot chosen yet) -> collection_scheduled -> processing
+/// -> report_ready, with cancelled reachable from either of the first two. Only the transitions
+/// each status actually allows are shown — no "attach report" self-upload step, no cancel before a
+/// test is even scheduled.
 class LabTestsTab extends StatefulWidget {
   final String memberId;
   const LabTestsTab({super.key, required this.memberId});
@@ -31,7 +28,6 @@ class LabTestsTab extends StatefulWidget {
 
 class _LabTestsTabState extends State<LabTestsTab> {
   List<dynamic>? _bookings;
-  String? _attachingId;
 
   @override
   void initState() {
@@ -45,60 +41,14 @@ class _LabTestsTabState extends State<LabTestsTab> {
     if (mounted) setState(() => _bookings = bookings);
   }
 
-  Future<void> _attachReport(String bookingId) async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.photo_camera_rounded), title: const Text('Take photo'), onTap: () => Navigator.of(context).pop('camera')),
-          ListTile(leading: const Icon(Icons.image_rounded), title: const Text('Choose from Photos'), onTap: () => Navigator.of(context).pop('gallery')),
-          ListTile(leading: const Icon(Icons.picture_as_pdf_rounded), title: const Text('Choose PDF'), onTap: () => Navigator.of(context).pop('pdf')),
-        ]),
-      ),
-    );
-    if (choice == null || !mounted) return;
-
-    final files = <PickedFileBytes>[];
-    if (choice == 'camera') {
-      final photo = await ImagePicker().pickImage(source: ImageSource.camera);
-      if (photo != null) files.add(PickedFileBytes(photo.name, await photo.readAsBytes()));
-    } else if (choice == 'gallery') {
-      final picked = await ImagePicker().pickMultiImage();
-      for (final p in picked) {
-        files.add(PickedFileBytes(p.name, await p.readAsBytes()));
-      }
-    } else {
-      final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
-      for (final f in picked) {
-        files.add(PickedFileBytes(f.name, await f.readAsBytes()));
-      }
-    }
-    if (files.isEmpty || !mounted) return;
-
-    setState(() => _attachingId = bookingId);
-    try {
-      final api = context.read<AuthProvider>().api;
-      final result = await api.uploadDocument(memberId: widget.memberId, documentType: 'lab_report', files: files);
-      final documentId = result['documentId'] as String?;
-      if (documentId != null) {
-        await api.updateLabTestBooking(bookingId, {'status': 'report_ready', 'document_id': documentId});
-      }
-      await _load();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    } finally {
-      if (mounted) setState(() => _attachingId = null);
-    }
-  }
-
-  Future<void> _reschedule(Map<String, dynamic> booking) async {
+  Future<void> _pickDateAndSlot(Map<String, dynamic> booking, {required String title, required String confirmLabel}) async {
     DateTime date = DateTime.tryParse(booking['booked_date'] as String? ?? '') ?? DateTime.now().add(const Duration(days: 1));
-    String slot = (booking['time_slot'] as String?) ?? _kRescheduleSlots.first.$1;
+    String slot = (booking['time_slot'] as String?) ?? _kSlots.first.$1;
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Reschedule collection'),
+          title: Text(title),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -115,21 +65,23 @@ class _LabTestsTabState extends State<LabTestsTab> {
               DropdownButtonFormField<String>(
                 initialValue: slot,
                 decoration: const InputDecoration(labelText: 'Collection time'),
-                items: [for (final s in _kRescheduleSlots) DropdownMenuItem(value: s.$1, child: Text(s.$2))],
+                items: [for (final s in _kSlots) DropdownMenuItem(value: s.$1, child: Text(s.$2))],
                 onChanged: (v) => setDialogState(() => slot = v ?? slot),
               ),
             ],
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Back')),
-            ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
+            ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(confirmLabel)),
           ],
         ),
       ),
     );
     if (saved != true || !mounted) return;
     final api = context.read<AuthProvider>().api;
-    await api.updateLabTestBooking(booking['id'] as String, {'booked_date': date.toIso8601String().substring(0, 10), 'time_slot': slot});
+    final payload = <String, dynamic>{'booked_date': date.toIso8601String().substring(0, 10), 'time_slot': slot};
+    if (booking['status'] == 'pending_schedule') payload['status'] = 'collection_scheduled';
+    await api.updateLabTestBooking(booking['id'] as String, payload);
     await _load();
   }
 
@@ -139,7 +91,7 @@ class _LabTestsTabState extends State<LabTestsTab> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Cancel this lab test?'),
-        content: Text('The booked collection for $tests will be cancelled.'),
+        content: Text('The booking for $tests will be cancelled.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep it')),
           ElevatedButton(
@@ -176,9 +128,8 @@ class _LabTestsTabState extends State<LabTestsTab> {
             for (final b in bookings)
               _BookingCard(
                 booking: b,
-                busy: _attachingId == b['id'],
-                onAttach: () => _attachReport(b['id'] as String),
-                onReschedule: () => _reschedule(b),
+                onSchedule: () => _pickDateAndSlot(b, title: 'Schedule collection', confirmLabel: 'Schedule'),
+                onReschedule: () => _pickDateAndSlot(b, title: 'Reschedule collection', confirmLabel: 'Save'),
                 onCancel: () => _cancel(b),
               ),
         ],
@@ -189,11 +140,10 @@ class _LabTestsTabState extends State<LabTestsTab> {
 
 class _BookingCard extends StatelessWidget {
   final Map<String, dynamic> booking;
-  final bool busy;
-  final VoidCallback onAttach;
+  final VoidCallback onSchedule;
   final VoidCallback onReschedule;
   final VoidCallback onCancel;
-  const _BookingCard({required this.booking, required this.busy, required this.onAttach, required this.onReschedule, required this.onCancel});
+  const _BookingCard({required this.booking, required this.onSchedule, required this.onReschedule, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -202,9 +152,10 @@ class _BookingCard extends StatelessWidget {
     final documentId = booking['document_id'] as String?;
     final (bg, fg, label) = switch (status) {
       'report_ready' => (careloopGreenBg, careloopGreen, 'Reports Delivered'),
-      'processing' => (careloopNewBg, careloopInfo, 'Collection Done'),
+      'processing' => (careloopNewBg, careloopInfo, 'Sample Collection Done'),
       'cancelled' => (careloopAbnormalBg, careloopDanger, 'Cancelled'),
-      _ => (careloopWarningBg, careloopWarning, 'Collection Scheduled'),
+      'pending_schedule' => (careloopSurfaceRaised, careloopMuted, 'Not Scheduled'),
+      _ => (careloopWarningBg, careloopWarning, 'Scheduled'),
     };
 
     return Container(
@@ -229,10 +180,7 @@ class _BookingCard extends StatelessWidget {
                         Text(t, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                       ]),
                     ),
-                  Text(
-                    '${booking['lab_name']} · Booked ${booking['booked_date']}${booking['time_slot'] != null ? ' · ${booking['time_slot']}' : ''}',
-                    style: const TextStyle(color: careloopMuted, fontSize: 10.5),
-                  ),
+                  Text(booking['lab_name'] as String? ?? '', style: const TextStyle(color: careloopMuted, fontSize: 10.5)),
                 ],
               ),
             ),
@@ -242,6 +190,21 @@ class _BookingCard extends StatelessWidget {
               child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 10)),
             ),
           ]),
+          if (booking['booked_date'] != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(color: careloopAccentLight, borderRadius: BorderRadius.circular(10)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.calendar_today_rounded, size: 13, color: careloopAccentDark),
+                const SizedBox(width: 6),
+                Text(
+                  'Booked for ${booking['booked_date']}${booking['time_slot'] != null ? ' · ${_formatSlot(booking['time_slot'] as String)}' : ''}',
+                  style: const TextStyle(color: careloopAccentDark, fontWeight: FontWeight.w600, fontSize: 11),
+                ),
+              ]),
+            ),
+          ],
           if (status == 'report_ready' && documentId != null) ...[
             const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
             Row(children: [
@@ -256,40 +219,38 @@ class _BookingCard extends StatelessWidget {
                 ]),
               ),
             ]),
-          ] else if (status == 'cancelled') ...[
-            // Cancelled — nothing further to do on this booking.
-          ] else ...[
-            const SizedBox(height: 8),
+          ] else if (status == 'pending_schedule') ...[
+            const SizedBox(height: 10),
+            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: onSchedule, child: const Text('Schedule'))),
+          ] else if (status == 'collection_scheduled') ...[
+            const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(
-                onPressed: busy ? null : onAttach,
-                icon: busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.upload_file_rounded, size: 15),
-                label: Text(busy ? 'Uploading…' : 'Attach report'),
+                onPressed: onReschedule,
+                icon: const Icon(Icons.event_repeat_rounded, size: 15),
+                label: const Text('Reschedule'),
                 style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
               ),
-              if (status == 'collection_scheduled') ...[
-                OutlinedButton.icon(
-                  onPressed: onReschedule,
-                  icon: const Icon(Icons.event_repeat_rounded, size: 15),
-                  label: const Text('Reschedule'),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              OutlinedButton.icon(
+                onPressed: onCancel,
+                icon: const Icon(Icons.close_rounded, size: 15, color: careloopDanger),
+                label: const Text('Cancel', style: TextStyle(color: careloopDanger)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  side: const BorderSide(color: careloopDanger),
                 ),
-                OutlinedButton.icon(
-                  onPressed: onCancel,
-                  icon: const Icon(Icons.close_rounded, size: 15, color: careloopDanger),
-                  label: const Text('Cancel', style: TextStyle(color: careloopDanger)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    side: const BorderSide(color: careloopDanger),
-                  ),
-                ),
-              ],
+              ),
             ]),
           ],
         ],
       ),
     );
+  }
+
+  static String _formatSlot(String slot) {
+    final match = _kSlots.where((s) => s.$1 == slot);
+    return match.isEmpty ? slot : match.first.$2;
   }
 }

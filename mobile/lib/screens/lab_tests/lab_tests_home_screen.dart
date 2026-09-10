@@ -92,38 +92,56 @@ class _BookingRow extends StatelessWidget {
     final status = booking['status'] as String;
     final (bg, fg, label) = switch (status) {
       'report_ready' => (careloopGreenBg, careloopGreen, 'Reports Delivered'),
-      'processing' => (careloopNewBg, careloopInfo, 'Collection Done'),
+      'processing' => (careloopNewBg, careloopInfo, 'Sample Collection Done'),
       'cancelled' => (careloopAbnormalBg, careloopDanger, 'Cancelled'),
-      _ => (careloopWarningBg, careloopWarning, 'Collection Scheduled'),
+      'pending_schedule' => (careloopSurfaceRaised, careloopMuted, 'Not Scheduled'),
+      _ => (careloopWarningBg, careloopWarning, 'Scheduled'),
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: careloopSurface, borderRadius: BorderRadius.circular(careloopRadiusMd), border: careloopCardBorder, boxShadow: careloopCardShadow),
-        child: Row(children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final t in tests)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 4, height: 4, margin: const EdgeInsets.only(right: 6), decoration: const BoxDecoration(color: careloopTextPrimary, shape: BoxShape.circle)),
-                      Text(t, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                    ]),
-                  ),
-                Text('$who · ${booking['lab_name']}', style: const TextStyle(color: careloopMuted, fontSize: 10.5)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-            child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 10)),
-          ),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final t in tests)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(width: 4, height: 4, margin: const EdgeInsets.only(right: 6), decoration: const BoxDecoration(color: careloopTextPrimary, shape: BoxShape.circle)),
+                          Text(t, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                        ]),
+                      ),
+                    Text('$who · ${booking['lab_name']}', style: const TextStyle(color: careloopMuted, fontSize: 10.5)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+                child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 10)),
+              ),
+            ]),
+            if (booking['booked_date'] != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(color: careloopAccentLight, borderRadius: BorderRadius.circular(9)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.calendar_today_rounded, size: 12, color: careloopAccentDark),
+                  const SizedBox(width: 6),
+                  Text('Booked for ${booking['booked_date']}', style: const TextStyle(color: careloopAccentDark, fontWeight: FontWeight.w600, fontSize: 10.5)),
+                ]),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
