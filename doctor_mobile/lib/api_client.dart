@@ -125,6 +125,11 @@ class ApiClient {
   // --- Practice settings: default fee, working hours, time off ---
   Future<Map<String, dynamic>> getMyProfile() async => await _get('/providers/me/profile');
   Future<void> updateDefaultFee(double fee) => _patch('/providers/me/profile', {'default_fee': fee});
+  Future<void> updateCredentials({String? registrationNumber, String? qualifications, int? yearsOfExperience}) => _patch('/providers/me/profile', {
+        'registration_number': registrationNumber,
+        'qualifications': qualifications,
+        'years_of_experience': yearsOfExperience,
+      });
 
   Future<List<dynamic>> getAvailability() async => await _get('/providers/me/availability');
   Future<void> addAvailability({required int dayOfWeek, required String startTime, required String endTime}) =>

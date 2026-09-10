@@ -21,6 +21,10 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
   List<dynamic>? _timeOff;
   final _feeController = TextEditingController();
   bool _savingFee = false;
+  final _registrationController = TextEditingController();
+  final _qualificationsController = TextEditingController();
+  final _experienceController = TextEditingController();
+  bool _savingCredentials = false;
 
   @override
   void initState() {
@@ -37,6 +41,9 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
         _availability = results[1] as List<dynamic>;
         _timeOff = results[2] as List<dynamic>;
         _feeController.text = (_profile!['default_fee'] as num?)?.toStringAsFixed(0) ?? '';
+        _registrationController.text = _profile!['registration_number'] as String? ?? '';
+        _qualificationsController.text = _profile!['qualifications'] as String? ?? '';
+        _experienceController.text = (_profile!['years_of_experience'] as num?)?.toStringAsFixed(0) ?? '';
       });
     }
   }
@@ -50,6 +57,27 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Default fee saved')));
     } finally {
       if (mounted) setState(() => _savingFee = false);
+    }
+  }
+
+  // Self-declared, not verified against any medical council registry — a display field for the
+  // doctor's own records, same trust level as the rest of this demo app's data.
+  Future<void> _saveCredentials() async {
+    final years = _experienceController.text.trim().isEmpty ? null : int.tryParse(_experienceController.text.trim());
+    if (_experienceController.text.trim().isNotEmpty && (years == null || years < 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Years of experience must be a whole number')));
+      return;
+    }
+    setState(() => _savingCredentials = true);
+    try {
+      await context.read<AuthProvider>().api.updateCredentials(
+            registrationNumber: _registrationController.text.trim().isEmpty ? null : _registrationController.text.trim(),
+            qualifications: _qualificationsController.text.trim().isEmpty ? null : _qualificationsController.text.trim(),
+            yearsOfExperience: years,
+          );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Credentials saved')));
+    } finally {
+      if (mounted) setState(() => _savingCredentials = false);
     }
   }
 
@@ -140,6 +168,22 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
+          const Text('CREDENTIALS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          const SizedBox(height: 8),
+          DocCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Self-declared for your own records — shown on your profile, not verified against any registry.', style: TextStyle(fontSize: 12, color: docMuted)),
+              const SizedBox(height: 10),
+              TextField(controller: _registrationController, decoration: const InputDecoration(labelText: 'Medical registration number')),
+              const SizedBox(height: 10),
+              TextField(controller: _qualificationsController, decoration: const InputDecoration(labelText: 'Qualifications', hintText: 'e.g. MBBS, MD (General Medicine)')),
+              const SizedBox(height: 10),
+              TextField(controller: _experienceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Years of experience')),
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _savingCredentials ? null : _saveCredentials, child: const Text('Save credentials'))),
+            ]),
+          ),
+          const SizedBox(height: 20),
           const Text('DEFAULT CONSULTATION FEE', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
           const SizedBox(height: 8),
           DocCard(

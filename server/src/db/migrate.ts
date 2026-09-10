@@ -252,6 +252,9 @@ export function runMigrations(db: Db) {
     )
   `);
   ensureColumn(db, 'providers', 'default_fee', 'REAL');
+  ensureColumn(db, 'providers', 'registration_number', 'TEXT');
+  ensureColumn(db, 'providers', 'qualifications', 'TEXT');
+  ensureColumn(db, 'providers', 'years_of_experience', 'INTEGER');
   db.exec(`
     CREATE TABLE IF NOT EXISTS provider_availability (
       id TEXT PRIMARY KEY,

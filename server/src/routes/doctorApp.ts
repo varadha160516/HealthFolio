@@ -318,17 +318,30 @@ doctorAppRouter.post('/providers/me/notifications/:id/read', requireAuth, requir
 // which stays as a display-only summary.
 
 doctorAppRouter.get('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
-  const provider = db.prepare('SELECT id, name, specialty, clinic_id, availability_note, default_fee FROM providers WHERE id = ?').get(req.session!.providerId);
+  const provider = db
+    .prepare('SELECT id, name, specialty, clinic_id, availability_note, default_fee, registration_number, qualifications, years_of_experience FROM providers WHERE id = ?')
+    .get(req.session!.providerId);
   if (!provider) return res.status(404).json({ error: 'Not found' });
   res.json(provider);
 });
 
 doctorAppRouter.patch('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
-  const { default_fee } = req.body ?? {};
+  const { default_fee, registration_number, qualifications, years_of_experience } = req.body ?? {};
   if (default_fee !== undefined && default_fee !== null) {
     const fee = Number(default_fee);
     if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ error: 'default_fee must be a non-negative number' });
     db.prepare('UPDATE providers SET default_fee = ? WHERE id = ?').run(fee, req.session!.providerId);
+  }
+  if (registration_number !== undefined) {
+    db.prepare('UPDATE providers SET registration_number = ? WHERE id = ?').run((registration_number as string)?.trim() || null, req.session!.providerId);
+  }
+  if (qualifications !== undefined) {
+    db.prepare('UPDATE providers SET qualifications = ? WHERE id = ?').run((qualifications as string)?.trim() || null, req.session!.providerId);
+  }
+  if (years_of_experience !== undefined && years_of_experience !== null) {
+    const years = Number(years_of_experience);
+    if (!Number.isInteger(years) || years < 0) return res.status(400).json({ error: 'years_of_experience must be a non-negative whole number' });
+    db.prepare('UPDATE providers SET years_of_experience = ? WHERE id = ?').run(years, req.session!.providerId);
   }
   res.json({ ok: true });
 });

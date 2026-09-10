@@ -159,7 +159,10 @@ CREATE TABLE IF NOT EXISTS providers (
   clinic_id TEXT REFERENCES clinics(id),
   availability_note TEXT, -- free-text display only (e.g. "Mon-Fri, 10am-6pm") — superseded for real
   -- scheduling by provider_availability/provider_time_off below, but kept as a human-readable summary
-  default_fee REAL -- prefills (doesn't force) the per-visit fee prompt on Complete Visit
+  default_fee REAL, -- prefills (doesn't force) the per-visit fee prompt on Complete Visit
+  registration_number TEXT, -- medical council registration/license number, self-declared (not verified against any registry)
+  qualifications TEXT, -- free text, e.g. "MBBS, MD (General Medicine)"
+  years_of_experience INTEGER
 );
 
 -- A member's saved/favorite doctors — bookable regardless of distance (unlike the
