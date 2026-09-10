@@ -328,7 +328,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   // guessed default.
   Future<double?> _askConsultationFee() async {
     final controller = TextEditingController();
+    try {
+      final profile = await _api.getMyProfile();
+      final defaultFee = (profile['default_fee'] as num?)?.toStringAsFixed(0);
+      if (defaultFee != null) controller.text = defaultFee;
+    } catch (_) {
+      // silent -- no default set yet, or a transient hiccup; the doctor can still type one in
+    }
     String? error;
+    if (!mounted) return null;
     return showDialog<double>(
       context: context,
       barrierDismissible: false,

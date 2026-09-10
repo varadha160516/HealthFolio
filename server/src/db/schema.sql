@@ -157,7 +157,9 @@ CREATE TABLE IF NOT EXISTS providers (
   name TEXT NOT NULL,
   specialty TEXT, -- one of the canonical specializations (see server/src/specializations.ts)
   clinic_id TEXT REFERENCES clinics(id),
-  availability_note TEXT -- free-text display only (e.g. "Mon-Fri, 10am-6pm") — no real slot/booking-conflict system
+  availability_note TEXT, -- free-text display only (e.g. "Mon-Fri, 10am-6pm") — superseded for real
+  -- scheduling by provider_availability/provider_time_off below, but kept as a human-readable summary
+  default_fee REAL -- prefills (doesn't force) the per-visit fee prompt on Complete Visit
 );
 
 -- A member's saved/favorite doctors — bookable regardless of distance (unlike the
@@ -510,5 +512,27 @@ CREATE TABLE IF NOT EXISTS pharmacy_orders (
   delivery_address TEXT,
   status TEXT NOT NULL DEFAULT 'placed' CHECK (status IN ('placed','delivered','cancelled')),
   estimated_delivery_date TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Weekly working hours -- multiple windows per day are allowed (e.g. a morning and an evening
+-- clinic). A provider with NO rows here has no restriction applied at booking time (keeps
+-- existing/legacy providers working exactly as before until they actually set hours).
+CREATE TABLE IF NOT EXISTS provider_availability (
+  id TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6), -- 0=Sun..6=Sat
+  start_time TEXT NOT NULL, -- "HH:MM"
+  end_time TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+-- Whole-day leave/holiday blocks -- a booking on one of these dates is rejected regardless of the
+-- weekly windows above.
+CREATE TABLE IF NOT EXISTS provider_time_off (
+  id TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  date TEXT NOT NULL, -- "YYYY-MM-DD"
+  reason TEXT,
   created_at TEXT NOT NULL
 );

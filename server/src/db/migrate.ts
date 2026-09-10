@@ -251,6 +251,26 @@ export function runMigrations(db: Db) {
       created_at TEXT NOT NULL
     )
   `);
+  ensureColumn(db, 'providers', 'default_fee', 'REAL');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS provider_availability (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES providers(id),
+      day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS provider_time_off (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES providers(id),
+      date TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
 
   // Doctor App's "select lab tests" sheet reads the full catalog — the original 5-row "popular"
   // seed was fine for the member app's own quick-book flow, but too thin for a doctor ordering

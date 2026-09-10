@@ -179,6 +179,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         _reasonForVisit.clear();
       });
       await _load();
+    } catch (e) {
+      // Booking can now be genuinely rejected (outside working hours, a leave day, or a slot
+      // already taken) now that the server checks the doctor's real schedule — surface why.
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
       if (mounted) setState(() => _booking = false);
     }
@@ -225,11 +229,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       ),
     );
     if (saved != true || !mounted) return;
-    await context.read<AuthProvider>().api.editAppointment(appt['id'] as String, {
-      'datetime': datetime.toIso8601String(),
-      'reason_for_visit': reason.text.trim().isEmpty ? null : reason.text.trim(),
-    });
-    _load();
+    try {
+      await context.read<AuthProvider>().api.editAppointment(appt['id'] as String, {
+        'datetime': datetime.toIso8601String(),
+        'reason_for_visit': reason.text.trim().isEmpty ? null : reason.text.trim(),
+      });
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   Future<void> _cancelAppointment(Map<String, dynamic> appt) async {

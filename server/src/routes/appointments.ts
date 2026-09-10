@@ -46,6 +46,45 @@ function computeMedicationEndDate(startDate: string, durationText: string | null
   return end.toISOString().slice(0, 10);
 }
 
+// Real scheduling (back office follow-up after invoicing): checks a requested booking against
+// the provider's own weekly hours, leave days, and existing appointments. Reads the wall-clock
+// date/time straight out of the ISO string via regex rather than via a JS Date's local/UTC
+// conversion — datetime strings in this app aren't consistently Z-suffixed (client-dependent), so
+// this sidesteps that ambiguity entirely rather than risking a wrong day-of-week/time from an
+// unwanted timezone shift. Day-of-week is computed from the Y/M/D via Date.UTC, which is safe
+// (calendar day-of-week never depends on time-of-day or timezone offset).
+function checkProviderAvailable(providerId: string, datetimeIso: string, excludeAppointmentId?: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(datetimeIso);
+  if (!match) return 'Invalid datetime';
+  const [, y, mo, d, h, mi] = match;
+  const dateStr = `${y}-${mo}-${d}`;
+  const timeStr = `${h}:${mi}`;
+  const dayOfWeek = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d))).getUTCDay();
+
+  const dayOff = db.prepare('SELECT 1 FROM provider_time_off WHERE provider_id = ? AND date = ?').get(providerId, dateStr);
+  if (dayOff) return 'The doctor is not available on this date.';
+
+  // A provider with no configured hours at all has no restriction — keeps providers who haven't
+  // set up a schedule yet working exactly as before.
+  const hasAnyAvailability = db.prepare('SELECT 1 FROM provider_availability WHERE provider_id = ? LIMIT 1').get(providerId);
+  if (hasAnyAvailability) {
+    const windows = db
+      .prepare('SELECT start_time, end_time FROM provider_availability WHERE provider_id = ? AND day_of_week = ?')
+      .all(providerId, dayOfWeek) as { start_time: string; end_time: string }[];
+    const inWindow = windows.some((w) => timeStr >= w.start_time && timeStr < w.end_time);
+    if (!inWindow) return "This time is outside the doctor's working hours.";
+  }
+
+  // Exact-slot conflict only — appointments have no duration field, so this catches literal
+  // double-booking of the same minute, not partial overlaps of different-length visits.
+  const conflictRow = db
+    .prepare(`SELECT id FROM appointments WHERE provider_id = ? AND datetime = ? AND status NOT IN ('cancelled','consent_denied','consent_expired')`)
+    .get(providerId, datetimeIso) as { id: string } | undefined;
+  if (conflictRow && conflictRow.id !== excludeAppointmentId) return 'This slot is already booked.';
+
+  return null;
+}
+
 export interface AppointmentRow {
   id: string;
   member_id: string;
@@ -144,6 +183,8 @@ appointmentsRouter.post('/appointments', requireAuth, (req, res) => {
   const { member_id, provider_id, datetime, sharing_preference, reason_for_visit } = req.body ?? {};
   if (!member_id || !provider_id || !datetime) return res.status(400).json({ error: 'member_id, provider_id, datetime are required' });
   if (!assertFamilyAccess(req, res, member_id)) return;
+  const availabilityError = checkProviderAvailable(provider_id, datetime);
+  if (availabilityError) return res.status(409).json({ error: availabilityError });
   const id = uuid();
   db.prepare(
     `INSERT INTO appointments (id, member_id, provider_id, datetime, status, sharing_preference, reason_for_visit, consent_grant_id, created_at, updated_at)
@@ -170,6 +211,11 @@ appointmentsRouter.patch('/appointments/:id', requireAuth, (req, res) => {
   if (sharing_preference) updates.sharing_preference = sharing_preference;
   if (reason_for_visit !== undefined) updates.reason_for_visit = reason_for_visit?.trim() || null;
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No editable fields in request body' });
+
+  if (updates.datetime || updates.provider_id) {
+    const availabilityError = checkProviderAvailable(updates.provider_id ?? appt.provider_id, updates.datetime ?? appt.datetime, appt.id);
+    if (availabilityError) return res.status(409).json({ error: availabilityError });
+  }
 
   const setClause = Object.keys(updates).map((f) => `${f} = @${f}`).join(', ');
   db.prepare(`UPDATE appointments SET ${setClause}, updated_at = @updated_at WHERE id = @id`).run({ ...updates, updated_at: now(), id: appt.id });

@@ -309,3 +309,84 @@ doctorAppRouter.post('/providers/me/notifications/:id/read', requireAuth, requir
   db.prepare('UPDATE provider_notifications SET read_at = ? WHERE id = ? AND provider_id = ?').run(now(), req.params.id, providerId);
   res.json({ ok: true });
 });
+
+// --- Practice settings: default fee, weekly working hours, time off ---
+// Back-office basics (Roadmap follow-up after invoicing/payment): a doctor's default consultation
+// fee (prefills, never forces, the per-visit fee prompt on Complete Visit), plus real weekly
+// availability and leave days that new bookings are now checked against (see
+// checkProviderAvailable in appointments.ts) instead of the old free-text availability_note,
+// which stays as a display-only summary.
+
+doctorAppRouter.get('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const provider = db.prepare('SELECT id, name, specialty, clinic_id, availability_note, default_fee FROM providers WHERE id = ?').get(req.session!.providerId);
+  if (!provider) return res.status(404).json({ error: 'Not found' });
+  res.json(provider);
+});
+
+doctorAppRouter.patch('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const { default_fee } = req.body ?? {};
+  if (default_fee !== undefined && default_fee !== null) {
+    const fee = Number(default_fee);
+    if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ error: 'default_fee must be a non-negative number' });
+    db.prepare('UPDATE providers SET default_fee = ? WHERE id = ?').run(fee, req.session!.providerId);
+  }
+  res.json({ ok: true });
+});
+
+doctorAppRouter.get('/providers/me/availability', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const rows = db
+    .prepare('SELECT id, day_of_week, start_time, end_time FROM provider_availability WHERE provider_id = ? ORDER BY day_of_week, start_time')
+    .all(req.session!.providerId);
+  res.json(rows);
+});
+
+doctorAppRouter.post('/providers/me/availability', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const { day_of_week, start_time, end_time } = req.body ?? {};
+  if (!Number.isInteger(day_of_week) || day_of_week < 0 || day_of_week > 6) return res.status(400).json({ error: 'day_of_week must be 0-6' });
+  if (!/^\d{2}:\d{2}$/.test(start_time ?? '') || !/^\d{2}:\d{2}$/.test(end_time ?? '')) return res.status(400).json({ error: 'start_time/end_time must be "HH:MM"' });
+  if (start_time >= end_time) return res.status(400).json({ error: 'start_time must be before end_time' });
+  const id = uuid();
+  db.prepare('INSERT INTO provider_availability (id, provider_id, day_of_week, start_time, end_time, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    id,
+    req.session!.providerId,
+    day_of_week,
+    start_time,
+    end_time,
+    now()
+  );
+  res.status(201).json({ id });
+});
+
+doctorAppRouter.delete('/providers/me/availability/:id', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  db.prepare('DELETE FROM provider_availability WHERE id = ? AND provider_id = ?').run(req.params.id, req.session!.providerId);
+  res.status(204).end();
+});
+
+doctorAppRouter.get('/providers/me/time-off', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const rows = db.prepare('SELECT id, date, reason FROM provider_time_off WHERE provider_id = ? ORDER BY date').all(req.session!.providerId);
+  res.json(rows);
+});
+
+doctorAppRouter.post('/providers/me/time-off', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const { date, reason } = req.body ?? {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) return res.status(400).json({ error: 'date must be "YYYY-MM-DD"' });
+  const id = uuid();
+  db.prepare('INSERT INTO provider_time_off (id, provider_id, date, reason, created_at) VALUES (?, ?, ?, ?, ?)').run(id, req.session!.providerId, date, reason ?? null, now());
+  res.status(201).json({ id });
+});
+
+doctorAppRouter.delete('/providers/me/time-off/:id', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  db.prepare('DELETE FROM provider_time_off WHERE id = ? AND provider_id = ?').run(req.params.id, req.session!.providerId);
+  res.status(204).end();
+});
+
+// --- Billing: every invoice this doctor has issued, for the practice's own billing/revenue view
+// (member-side invoice list stays in invoices.ts — this is the mirror for the provider side). ---
+doctorAppRouter.get('/providers/me/invoices', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT i.*, m.name AS member_name FROM invoices i JOIN members m ON m.id = i.member_id WHERE i.provider_id = ? ORDER BY i.issued_at DESC`
+    )
+    .all(req.session!.providerId);
+  res.json(rows);
+});

@@ -4,6 +4,8 @@ import '../auth_provider.dart';
 import '../theme.dart';
 import 'home_shell.dart';
 import 'notifications_screen.dart';
+import 'practice_settings_screen.dart';
+import 'billing_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -36,6 +38,8 @@ class MoreScreen extends StatelessWidget {
           child: Column(children: [
             _MenuRow(icon: Icons.notifications_rounded, label: 'Notifications', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
             const Divider(height: 1),
+            _MenuRow(icon: Icons.receipt_long_rounded, label: 'Billing', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillingScreen()))),
+            const Divider(height: 1),
             const _MenuRow(icon: Icons.description_rounded, label: 'Prescriptions', enabled: false),
             const Divider(height: 1),
             const _MenuRow(icon: Icons.science_rounded, label: 'Lab Orders', enabled: false),
@@ -46,7 +50,7 @@ class MoreScreen extends StatelessWidget {
             const Divider(height: 1),
             const _MenuRow(icon: Icons.local_hospital_rounded, label: 'Clinic', enabled: false),
             const Divider(height: 1),
-            const _MenuRow(icon: Icons.settings_rounded, label: 'Settings', enabled: false),
+            _MenuRow(icon: Icons.settings_rounded, label: 'Practice Settings', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PracticeSettingsScreen()))),
           ]),
         ),
         const SizedBox(height: 16),

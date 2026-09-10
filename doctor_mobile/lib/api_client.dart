@@ -53,6 +53,8 @@ class ApiClient {
   Future<dynamic> _post(String path, [Map<String, dynamic>? body]) async =>
       _handle(await http.post(Uri.parse('$apiBaseUrl$path'), headers: _headers, body: body == null ? null : jsonEncode(body)));
   Future<dynamic> _put(String path, Map<String, dynamic> body) async => _handle(await http.put(Uri.parse('$apiBaseUrl$path'), headers: _headers, body: jsonEncode(body)));
+  Future<dynamic> _patch(String path, Map<String, dynamic> body) async => _handle(await http.patch(Uri.parse('$apiBaseUrl$path'), headers: _headers, body: jsonEncode(body)));
+  Future<dynamic> _delete(String path) async => _handle(await http.delete(Uri.parse('$apiBaseUrl$path'), headers: _headers));
 
   dynamic _handle(http.Response resp) {
     if (resp.statusCode == 204 || resp.body.isEmpty) return null;
@@ -119,4 +121,20 @@ class ApiClient {
   // --- Notifications ---
   Future<List<dynamic>> getNotifications() async => await _get('/providers/me/notifications');
   Future<void> markNotificationRead(String id) => _post('/providers/me/notifications/$id/read');
+
+  // --- Practice settings: default fee, working hours, time off ---
+  Future<Map<String, dynamic>> getMyProfile() async => await _get('/providers/me/profile');
+  Future<void> updateDefaultFee(double fee) => _patch('/providers/me/profile', {'default_fee': fee});
+
+  Future<List<dynamic>> getAvailability() async => await _get('/providers/me/availability');
+  Future<void> addAvailability({required int dayOfWeek, required String startTime, required String endTime}) =>
+      _post('/providers/me/availability', {'day_of_week': dayOfWeek, 'start_time': startTime, 'end_time': endTime});
+  Future<void> deleteAvailability(String id) => _delete('/providers/me/availability/$id');
+
+  Future<List<dynamic>> getTimeOff() async => await _get('/providers/me/time-off');
+  Future<void> addTimeOff({required String date, String? reason}) => _post('/providers/me/time-off', {'date': date, 'reason': reason});
+  Future<void> deleteTimeOff(String id) => _delete('/providers/me/time-off/$id');
+
+  // --- Billing ---
+  Future<List<dynamic>> getMyInvoices() async => await _get('/providers/me/invoices');
 }
