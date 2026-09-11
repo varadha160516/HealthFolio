@@ -20,7 +20,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // CARELOOP_UPLOADS_DIR mirrors db.ts's CARELOOP_DB_PATH override — lets production point this at
 // a mounted persistent-disk path instead of a directory relative to the compiled output.
-const uploadsDir = process.env.CARELOOP_UPLOADS_DIR || path.resolve(__dirname, '../../uploads');
+export const uploadsDir = process.env.CARELOOP_UPLOADS_DIR || path.resolve(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const DOCUMENT_TYPES = ['prescription', 'lab_report', 'radiology_scan', 'discharge_summary', 'vaccination_record', 'insurance_policy', 'other'];

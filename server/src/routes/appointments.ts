@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -10,6 +13,8 @@ import { SPECIALIZATIONS } from '../specializations.js';
 import { getConsentExplanation } from '../pipeline/consentExplainer.js';
 import { getPrevisitBrief } from '../pipeline/previsitPrep.js';
 import { checkPrescriptionDraft } from '../pipeline/medicationReconciliation.js';
+import { generatePrescriptionPdf, vitalsLineFromLatest } from '../pipeline/prescriptionPdf.js';
+import { uploadsDir } from './documents.js';
 
 export const appointmentsRouter = Router();
 
@@ -398,7 +403,7 @@ appointmentsRouter.post('/appointments/:id/reconcile-draft', requireAuth, requir
 
 // Prescription issuance (Section 8.1 step 6) — structured input from a verified in-app action,
 // skips OCR entirely and lands directly in the member's record (Section 3.4).
-appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireRole('provider_doctor'), (req, res) => {
+appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireRole('provider_doctor'), async (req, res) => {
   const appt = resolveAppointment(req.params.id);
   if (!appt) return res.status(404).json({ error: 'Not found' });
   if (!assertAppointmentVisible(req, res, appt)) return;
@@ -407,18 +412,48 @@ appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireR
   const { diagnosis_text, icd_code, notes, line_items } = req.body ?? {};
   if (!Array.isArray(line_items) || line_items.length === 0) return res.status(400).json({ error: 'line_items is required' });
 
-  const provider = db.prepare('SELECT name FROM providers WHERE id = ?').get(appt.provider_id) as { name: string } | undefined;
+  const provider = db.prepare('SELECT * FROM providers WHERE id = ?').get(appt.provider_id) as any;
+  const clinicName = provider?.clinic_id ? (db.prepare('SELECT name FROM clinics WHERE id = ?').get(provider.clinic_id) as { name: string } | undefined)?.name : null;
+  const member = db.prepare('SELECT name, dob, sex FROM members WHERE id = ?').get(appt.member_id) as { name: string; dob: string | null; sex: string | null } | undefined;
+  const consultNotes = db.prepare('SELECT chief_complaint, advice, follow_up_after, follow_up_reason FROM consultation_notes WHERE appointment_id = ?').get(appt.id) as
+    | { chief_complaint: string | null; advice: string | null; follow_up_after: string | null; follow_up_reason: string | null }
+    | undefined;
+  const latestVitals = db.prepare('SELECT * FROM member_vitals_entries WHERE appointment_id = ? ORDER BY recorded_at DESC LIMIT 1').get(appt.id) as Record<string, any> | undefined;
+  const age = member?.dob ? Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
 
   // Also files this prescription into the member's Documents tab (document_type='prescription',
-  // origin='provider_issued'), the same category member-uploaded prescription photos land in --
-  // just with no actual file (page_count 0, a non-existent storage_path so GET .../pages resolves
-  // to [] and DocumentViewerScreen falls back to its "no original file" state and renders the
-  // line items table instead, exactly as it already does for a member's own uploaded prescription).
+  // origin='provider_issued') as a real, downloadable PDF — same on-disk convention as a member's
+  // own upload (storage_path is the document's own directory, the file inside is page-1.<ext>),
+  // so the existing GET /documents/:id/pages + /file/:filename routes and the mobile app's PDF
+  // viewer (pdfx) work unchanged.
   const documentId = uuid();
+  const docDir = path.join(uploadsDir, documentId);
+  fs.mkdirSync(docDir, { recursive: true });
+  const pdfBytes = await generatePrescriptionPdf({
+    providerName: provider?.name ?? 'Doctor',
+    specialty: provider?.specialty ?? null,
+    clinicName,
+    registrationNumber: provider?.registration_number ?? null,
+    memberName: member?.name ?? 'Patient',
+    age,
+    sex: member?.sex ?? null,
+    issuedAt: now(),
+    chiefComplaint: consultNotes?.chief_complaint ?? null,
+    vitalsLine: vitalsLineFromLatest(latestVitals),
+    diagnosisText: diagnosis_text ?? null,
+    icdCode: icd_code ?? null,
+    lineItems: line_items,
+    advice: consultNotes?.advice ? JSON.parse(consultNotes.advice) : [],
+    followUpAfter: consultNotes?.follow_up_after ?? null,
+    followUpReason: consultNotes?.follow_up_reason ?? null,
+    signatureBase64: provider?.signature_base64 ?? null,
+  });
+  fs.writeFileSync(path.join(docDir, 'page-1.pdf'), pdfBytes);
+  const checksum = crypto.createHash('sha256').update(pdfBytes).digest('hex');
   db.prepare(
     `INSERT INTO documents (id, member_id, uploaded_by_user_id, document_type, storage_path, checksum, page_count, upload_date, source_lab_name, status, origin, created_at)
-     VALUES (?, ?, ?, 'prescription', 'provider-issued', ?, 0, ?, ?, 'parsed', 'provider_issued', ?)`
-  ).run(documentId, appt.member_id, req.session!.userId, documentId, now(), provider?.name ?? null, now());
+     VALUES (?, ?, ?, 'prescription', ?, ?, 1, ?, ?, 'parsed', 'provider_issued', ?)`
+  ).run(documentId, appt.member_id, req.session!.userId, docDir, checksum, now(), provider?.name ?? null, now());
 
   const prescriptionId = uuid();
   db.prepare(

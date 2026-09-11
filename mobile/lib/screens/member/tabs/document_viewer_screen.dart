@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../auth_provider.dart';
 import '../../../theme.dart';
 import '../../../utils/range_format.dart';
@@ -23,6 +26,7 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
   Map<String, dynamic>? _detail;
   List<dynamic>? _pages;
   int _pageIndex = 0;
+  bool _downloading = false;
   final Map<String, Future<Uint8List>> _fileCache = {};
 
   @override
@@ -46,6 +50,28 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
   Future<Uint8List> _fileFor(String filename) =>
       _fileCache.putIfAbsent(filename, () => context.read<AuthProvider>().api.getDocumentFileBytes(widget.documentId, filename));
 
+  /// Saves the current page to a temp file and opens the OS share sheet — on Android that sheet's
+  /// own "Save to Files"/"Save to Drive" targets are the actual download step; sharing this way
+  /// needs no storage permission, unlike writing straight into a public Downloads directory.
+  Future<void> _download(Map<String, dynamic> page, String documentType) async {
+    if (_downloading) return;
+    setState(() => _downloading = true);
+    try {
+      final bytes = await _fileFor(page['filename'] as String);
+      final ext = (page['filename'] as String).split('.').last;
+      final dir = await getTemporaryDirectory();
+      final safeName = documentType.replaceAll('_', '-');
+      final file = File('${dir.path}/$safeName-${widget.documentId.substring(0, 8)}.$ext');
+      await file.writeAsBytes(bytes);
+      if (!mounted) return;
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not download: $e')));
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_detail == null || _pages == null) return const GlassScaffold(body: LoadingCenter());
@@ -55,7 +81,17 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
     final pages = _pages!.cast<Map<String, dynamic>>();
 
     return GlassScaffold(
-      appBar: GlassAppBar(title: Text((doc['document_type'] as String).replaceAll('_', ' '))),
+      appBar: GlassAppBar(
+        title: Text((doc['document_type'] as String).replaceAll('_', ' ')),
+        actions: [
+          if (pages.isNotEmpty)
+            IconButton(
+              icon: _downloading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded),
+              tooltip: 'Download',
+              onPressed: _downloading ? null : () => _download(pages[_pageIndex], doc['document_type'] as String),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(

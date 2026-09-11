@@ -55,7 +55,8 @@ class _VisitSummaryScreenState extends State<VisitSummaryScreen> {
     return DocGradientScaffold(
       appBar: AppBar(title: const Text('Visit summary')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
           Container(
             padding: const EdgeInsets.all(16),

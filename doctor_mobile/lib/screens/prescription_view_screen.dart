@@ -87,7 +87,8 @@ class _PrescriptionViewScreenState extends State<PrescriptionViewScreen> {
         ]),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 40),
         children: [
           // One continuous letterhead document instead of many small disconnected cards — the
           // Rx (medications) section is the visual hero, everything else reads as supporting detail.
