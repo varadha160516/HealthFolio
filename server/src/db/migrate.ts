@@ -365,6 +365,26 @@ export function runMigrations(db: Db) {
     )
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_safety_flags_member ON safety_flags (member_id, status, created_at DESC)');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id TEXT PRIMARY KEY,
+      member_id TEXT NOT NULL REFERENCES members(id),
+      referring_appointment_id TEXT NOT NULL REFERENCES appointments(id),
+      referring_provider_id TEXT NOT NULL REFERENCES providers(id),
+      target_specialty TEXT,
+      target_provider_id TEXT REFERENCES providers(id),
+      reason TEXT NOT NULL,
+      notes TEXT,
+      urgency TEXT NOT NULL DEFAULT 'routine' CHECK (urgency IN ('routine','urgent')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','booked','completed','cancelled')),
+      resulting_appointment_id TEXT REFERENCES appointments(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_referrals_member ON referrals (member_id, status, created_at DESC)');
+  ensureColumn(db, 'appointments', 'referral_id', 'TEXT REFERENCES referrals(id)');
 }
 
 /** Best-effort backfill by display_name pattern, not a hand-curated per-row mapping — the

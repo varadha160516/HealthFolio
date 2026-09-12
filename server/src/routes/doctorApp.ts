@@ -145,6 +145,34 @@ doctorAppRouter.get('/appointments/:id/lab-orders', requireAuth, requireRole('pr
   res.json(rows.map((r) => ({ ...r, test_names: parseJson(r.test_names, []) })));
 });
 
+// --- Referrals — structured hand-off to a specialist. The reason/notes recorded here never grant
+// the receiving doctor any access on their own; they only surface inside THAT doctor's own
+// pre-visit brief once the patient books with them and grants consent for that new visit (see
+// previsitPrep.ts). This is what makes it safe to write real clinical context here at all. ---
+
+doctorAppRouter.post('/appointments/:id/referrals', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  const appt = loadUnlocked(req, res);
+  if (!appt) return;
+  const { target_specialty, target_provider_id, reason, notes, urgency } = req.body ?? {};
+  if (!reason || !String(reason).trim()) return res.status(400).json({ error: 'reason is required' });
+  if (!target_specialty && !target_provider_id) return res.status(400).json({ error: 'target_specialty or target_provider_id is required' });
+  if (urgency && !['routine', 'urgent'].includes(urgency)) return res.status(400).json({ error: "urgency must be 'routine' or 'urgent'" });
+
+  const id = uuid();
+  db.prepare(
+    `INSERT INTO referrals (id, member_id, referring_appointment_id, referring_provider_id, target_specialty, target_provider_id, reason, notes, urgency, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+  ).run(id, appt.member_id, appt.id, appt.provider_id, target_specialty ?? null, target_provider_id ?? null, reason.trim(), notes?.trim() || null, urgency ?? 'routine', now(), now());
+  res.status(201).json({ id });
+});
+
+doctorAppRouter.get('/appointments/:id/referrals', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
+  const appt = loadUnlocked(req, res);
+  if (!appt) return;
+  const rows = db.prepare('SELECT * FROM referrals WHERE referring_appointment_id = ? ORDER BY created_at DESC').all(appt.id);
+  res.json(rows);
+});
+
 // --- Follow-up scheduling — books the next appointment directly rather than just noting an
 // intention, so it actually shows up on the doctor's (and member's) appointment list. ---
 

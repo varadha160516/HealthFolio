@@ -26,6 +26,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   bool _remindersLoading = false;
   List<dynamic>? _medReminders;
   List<dynamic>? _safetyFlags;
+  List<dynamic>? _referrals;
   bool _showAdd = false;
   final _name = TextEditingController();
   final _dob = TextEditingController();
@@ -58,6 +59,19 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     _loadReminders();
     _loadMedReminders();
     _loadSafetyFlags();
+    _loadReferrals();
+  }
+
+  /// Pending specialist referrals across the family — surfaced here so a referral doesn't sit
+  /// unnoticed inside one member's profile. Fails silently, same reasoning as the other cards.
+  Future<void> _loadReferrals() async {
+    try {
+      final api = context.read<AuthProvider>().api;
+      final r = await api.getFamilyReferralsSummary();
+      if (mounted) setState(() => _referrals = r);
+    } catch (_) {
+      // silent — see doc comment above
+    }
   }
 
   /// Cross-provider safety net summary — how many members have an open flag, across every doctor
@@ -296,6 +310,40 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 ),
               ),
             ),
+          // Pending specialist referrals — real clinical context from the referring doctor rides
+          // along the moment the family books with the specialist (see referral_booking_screen.dart).
+          if (_referrals?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: GlassPane(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.forward_to_inbox_rounded, size: 16, color: careloopAccent),
+                      const SizedBox(width: 8),
+                      Text('Specialist referrals', style: careloopSectionHeading()),
+                    ]),
+                    const SizedBox(height: 10),
+                    Column(
+                      children: [
+                        for (final (i, r) in _referrals!.cast<Map<String, dynamic>>().indexed) ...[
+                          if (i > 0) const SizedBox(height: 10),
+                          _ReferralSummaryTile(
+                            referral: r,
+                            onTap: () async {
+                              final member = _members!.cast<Map<String, dynamic>>().firstWhere((m) => m['id'] == r['member_id'], orElse: () => {'id': r['member_id'], 'name': r['member_name']});
+                              await Navigator.push(context, pushRoute(MemberProfileScreen(member: member, initialIndex: kReferralsTabIndex)));
+                              if (mounted) _loadReferrals();
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_showAdd)
             SectionCard(
               title: 'Add a dependent',
@@ -421,6 +469,39 @@ class _AddButton extends StatelessWidget {
           Icon(showing ? Icons.close_rounded : Icons.add_rounded, size: 17, color: showing ? careloopMuted : careloopOnSage),
           const SizedBox(width: 4),
           Text(showing ? 'Cancel' : 'Add', style: TextStyle(color: showing ? careloopMuted : careloopOnSage, fontWeight: FontWeight.w500, fontSize: 13.5)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// One pending referral from GET /family/referrals-summary.
+class _ReferralSummaryTile extends StatelessWidget {
+  final Map<String, dynamic> referral;
+  final VoidCallback onTap;
+  const _ReferralSummaryTile({required this.referral, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final target = referral['target_provider_name'] as String? ?? referral['target_specialty'] as String? ?? 'a specialist';
+    final isUrgent = referral['urgency'] == 'urgent';
+    return InkWell(
+      borderRadius: BorderRadius.circular(careloopRadiusSm),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: isUrgent ? careloopAbnormalBg : careloopAccentLight, borderRadius: BorderRadius.circular(careloopRadiusSm)),
+        child: Row(children: [
+          Icon(Icons.forward_to_inbox_rounded, size: 17, color: isUrgent ? careloopDanger : careloopAccentDark),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${referral['member_name']} — referred to $target${isUrgent ? ' (urgent)' : ''}',
+              style: TextStyle(color: isUrgent ? careloopDanger : careloopAccentDark, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 18, color: isUrgent ? careloopDanger : careloopAccentDark),
         ]),
       ),
     );

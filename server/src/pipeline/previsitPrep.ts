@@ -26,9 +26,17 @@ function getClient(): Anthropic {
   return client;
 }
 
+interface ReferralContext {
+  referringDoctorName: string;
+  reason: string;
+  notes: string | null;
+  urgency: 'routine' | 'urgent';
+}
+
 interface Facts {
   memberName: string;
   reasonForVisit: string | null;
+  referral: ReferralContext | null;
   abnormal: { display_name: string; category: string; canonical_value: number | null; canonical_unit: string | null; range_text: string }[];
   allergies: string[];
   chronicConditions: string[];
@@ -38,6 +46,9 @@ interface Facts {
 function factsToPlainText(f: Facts): string {
   const lines = [
     `Patient: ${f.memberName}.`,
+    f.referral
+      ? `This visit is a referral from Dr. ${f.referral.referringDoctorName}${f.referral.urgency === 'urgent' ? ' (marked URGENT by the referring doctor)' : ''}. Referral reason: "${f.referral.reason}".${f.referral.notes ? ` Referring doctor's notes: "${f.referral.notes}"` : ''}`
+      : null,
     f.reasonForVisit ? `Stated reason for this visit: "${f.reasonForVisit}".` : `No reason for visit was stated.`,
     `Allergies: ${f.allergies.length ? f.allergies.join(', ') : 'none recorded'}.`,
     `Chronic conditions: ${f.chronicConditions.length ? f.chronicConditions.join(', ') : 'none recorded'}.`,
@@ -46,25 +57,30 @@ function factsToPlainText(f: Facts): string {
     ...(f.abnormal.length
       ? f.abnormal.map((a) => `- ${a.display_name} (${a.category}): ${a.canonical_value ?? '—'} ${a.canonical_unit ?? ''} — reference range ${a.range_text}`)
       : ['- none']),
-  ];
+  ].filter((l): l is string => l !== null);
   return lines.join('\n');
 }
 
-const SYSTEM_PROMPT = `You are the CareLoop Pre-visit Prep agent. A doctor's access to a patient's record has just unlocked for a real, currently in-progress visit. You are given the same structured facts already visible elsewhere in the doctor's console (flagged out-of-range results, allergies, conditions, current medications) plus the patient's own stated reason for this visit, if they gave one. You did not derive any of these facts — they were computed deterministically from real data.
+const SYSTEM_PROMPT = `You are the CareLoop Pre-visit Prep agent. A doctor's access to a patient's record has just unlocked for a real, currently in-progress visit. You are given the same structured facts already visible elsewhere in the doctor's console (flagged out-of-range results, allergies, conditions, current medications) plus the patient's own stated reason for this visit, if they gave one, plus — if this visit came from another doctor's referral — that referring doctor's stated reason and notes. You did not derive any of these facts — they were computed deterministically from real data or written verbatim by the referring doctor.
 
-Your only job: write a short brief (3-6 sentences, plain prose, no markdown/headers/bullets) that helps the doctor get oriented in the first few seconds of the visit. If a reason for visit was given, lead with whichever flagged results and conditions are actually relevant to it, then briefly note anything else flagged that's unrelated but still worth knowing. If no reason was given, just summarize what's flagged, in order of how out-of-range or clinically attention-worthy it looks from the numbers alone.
+Your only job: write a short brief (3-6 sentences, plain prose, no markdown/headers/bullets) that helps the doctor get oriented in the first few seconds of the visit. If this is a referral, lead with who referred the patient and why (and flag clearly if it's marked urgent) before anything else. Then, if a reason for visit was given, cover whichever flagged results and conditions are actually relevant to it (or to the referral reason), then briefly note anything else flagged that's unrelated but still worth knowing. If neither a referral nor a reason was given, just summarize what's flagged, in order of how out-of-range or clinically attention-worthy it looks from the numbers alone.
 
 Rules, no exceptions:
-- Never diagnose, never suggest a treatment or medication, never speculate about what the reason for visit implies medically beyond organizing what's already flagged.
+- Never diagnose, never suggest a treatment or medication, never speculate about what the reason for visit or referral implies medically beyond organizing what's already flagged.
 - Do not invent or infer any fact not in the list given — no new allergies, conditions, values, or history.
-- If nothing is flagged and no reason was given, say so plainly in one sentence rather than padding.`;
+- If nothing is flagged and no reason or referral was given, say so plainly in one sentence rather than padding.`;
 
 async function phraseBrief(facts: Facts): Promise<string> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    if (facts.abnormal.length === 0 && !facts.reasonForVisit) {
+    if (facts.abnormal.length === 0 && !facts.reasonForVisit && !facts.referral) {
       return `${facts.memberName} has nothing currently flagged out of range and no stated reason for this visit — check the full history panel below for context.`;
     }
     const parts: string[] = [];
+    if (facts.referral) {
+      parts.push(
+        `Referred by Dr. ${facts.referral.referringDoctorName}${facts.referral.urgency === 'urgent' ? ' (URGENT)' : ''}: "${facts.referral.reason}".${facts.referral.notes ? ` Notes: "${facts.referral.notes}"` : ''}`
+      );
+    }
     if (facts.reasonForVisit) parts.push(`Visit reason: "${facts.reasonForVisit}".`);
     if (facts.abnormal.length) {
       const items = facts.abnormal.map((a) => `${a.display_name} (${a.canonical_value ?? '—'} ${a.canonical_unit ?? ''}, ref. ${a.range_text})`).join('; ');
@@ -97,10 +113,22 @@ export async function getPrevisitBrief(appointmentId: string): Promise<{ brief: 
     | undefined;
   if (cached) return { brief: cached.brief, generatedAt: cached.generated_at };
 
-  const appt = db.prepare('SELECT member_id, reason_for_visit FROM appointments WHERE id = ?').get(appointmentId) as
-    | { member_id: string; reason_for_visit: string | null }
+  const appt = db.prepare('SELECT member_id, reason_for_visit, referral_id FROM appointments WHERE id = ?').get(appointmentId) as
+    | { member_id: string; reason_for_visit: string | null; referral_id: string | null }
     | undefined;
   if (!appt) throw new Error('Appointment not found');
+
+  let referral: ReferralContext | null = null;
+  if (appt.referral_id) {
+    const row = db
+      .prepare(
+        `SELECT r.reason, r.notes, r.urgency, p.name AS referring_doctor_name
+         FROM referrals r JOIN providers p ON p.id = r.referring_provider_id
+         WHERE r.id = ?`
+      )
+      .get(appt.referral_id) as { reason: string; notes: string | null; urgency: 'routine' | 'urgent'; referring_doctor_name: string } | undefined;
+    if (row) referral = { referringDoctorName: row.referring_doctor_name, reason: row.reason, notes: row.notes, urgency: row.urgency };
+  }
 
   const member = db.prepare('SELECT name FROM members WHERE id = ?').get(appt.member_id) as { name: string };
   const allergies = (db.prepare('SELECT value FROM allergies WHERE member_id = ?').all(appt.member_id) as { value: string }[]).map((r) => r.value);
@@ -119,6 +147,7 @@ export async function getPrevisitBrief(appointmentId: string): Promise<{ brief: 
   const facts: Facts = {
     memberName: member.name,
     reasonForVisit: appt.reason_for_visit,
+    referral,
     abnormal: abnormal.map((a) => ({
       display_name: a.display_name,
       category: a.category,

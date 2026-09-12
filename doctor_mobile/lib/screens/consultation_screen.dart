@@ -22,6 +22,7 @@ class ConsultationScreen extends StatefulWidget {
 
 class _ConsultationScreenState extends State<ConsultationScreen> {
   Map<String, dynamic>? _appt;
+  String? _previsitBrief;
   List<dynamic> _vitals = [];
   List<dynamic> _labOrders = [];
   List<dynamic> _visitHistory = [];
@@ -62,6 +63,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   final Set<String> _selectedTests = {};
   final _clinicalIndication = TextEditingController();
 
+  // Referrals
+  List<dynamic> _referrals = [];
+
   // Notes
   final _assessment = TextEditingController();
   final Set<String> _advice = {};
@@ -98,6 +102,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     final appt = await _api.getAppointment(widget.appointmentId);
     final vitals = await _api.getVitals(widget.appointmentId);
     final labOrders = await _api.getLabOrders(widget.appointmentId);
+    final referrals = await _api.getReferrals(widget.appointmentId);
     final notes = await _api.getConsultationNotes(widget.appointmentId);
     List<dynamic> history = [];
     try {
@@ -107,11 +112,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     try {
       catalog = await _api.getLabTestCatalog();
     } catch (_) {}
+    String? brief;
+    try {
+      brief = (await _api.getPrevisitBrief(widget.appointmentId))['brief'] as String?;
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
       _appt = appt;
+      _previsitBrief = brief;
       _vitals = vitals;
       _labOrders = labOrders;
+      _referrals = referrals;
       _visitHistory = history;
       _catalog = catalog;
       _loading = false;
@@ -222,6 +233,147 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       _labOrders = await _api.getLabOrders(widget.appointmentId);
       setState(() => _selectedTests.clear());
       await _snack('Tests ordered');
+    });
+  }
+
+  // Refers the patient onward with real clinical context attached — the receiving doctor never
+  // sees any of this until their OWN future appointment's consent unlocks (see previsitPrep.ts);
+  // this just makes sure it's waiting for them the moment it does, instead of a slip of paper.
+  Future<void> _openReferralSheet() async {
+    List<dynamic> specializations = [];
+    try {
+      specializations = await _api.getPublicSpecializations();
+    } catch (_) {}
+    if (!mounted) return;
+
+    String mode = 'specialty';
+    String? specialty;
+    Map<String, dynamic>? selectedProvider;
+    final searchController = TextEditingController();
+    List<dynamic> searchResults = [];
+    final reasonController = TextEditingController();
+    final notesController = TextEditingController();
+    String urgency = 'routine';
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(docRadiusXl))),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Refer to specialist', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(
+                  child: _sheetToggle('By specialty', mode == 'specialty', () => setSheetState(() => mode = 'specialty'), fill: true),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _sheetToggle('Specific doctor', mode == 'doctor', () => setSheetState(() => mode = 'doctor'), fill: true),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              if (mode == 'specialty')
+                DropdownButtonFormField<String>(
+                  initialValue: specialty,
+                  decoration: const InputDecoration(labelText: 'Specialty'),
+                  items: [for (final s in specializations) DropdownMenuItem(value: s as String, child: Text(s))],
+                  onChanged: (v) => setSheetState(() => specialty = v),
+                )
+              else ...[
+                TextField(
+                  controller: searchController,
+                  decoration: const InputDecoration(labelText: 'Search doctor by name', prefixIcon: Icon(Icons.search_rounded, size: 20)),
+                  onChanged: (q) async {
+                    if (q.trim().length < 2) {
+                      setSheetState(() => searchResults = []);
+                      return;
+                    }
+                    final results = await _api.searchProviders(q.trim());
+                    setSheetState(() => searchResults = results);
+                  },
+                ),
+                if (selectedProvider != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(color: docAccentLight, borderRadius: BorderRadius.circular(docRadiusSm)),
+                      child: Row(children: [
+                        Expanded(child: Text('${selectedProvider!['name']} · ${selectedProvider!['specialty'] ?? ''}', style: const TextStyle(color: docAccentDark, fontWeight: FontWeight.w600, fontSize: 12.5))),
+                        InkWell(onTap: () => setSheetState(() => selectedProvider = null), child: const Icon(Icons.close_rounded, size: 16, color: docAccentDark)),
+                      ]),
+                    ),
+                  )
+                else if (searchResults.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    decoration: BoxDecoration(color: docSurfaceRaised, borderRadius: BorderRadius.circular(docRadiusSm)),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final p in searchResults.cast<Map<String, dynamic>>())
+                          ListTile(
+                            dense: true,
+                            title: Text(p['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: Text(p['specialty'] ?? '', style: const TextStyle(fontSize: 11)),
+                            onTap: () => setSheetState(() {
+                              selectedProvider = p;
+                              searchResults = [];
+                              searchController.clear();
+                            }),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+              const SizedBox(height: 12),
+              TextField(controller: reasonController, decoration: const InputDecoration(labelText: 'Reason for referral')),
+              const SizedBox(height: 10),
+              TextField(controller: notesController, maxLines: 3, decoration: const InputDecoration(labelText: 'Clinical notes for the receiving doctor (optional)')),
+              const SizedBox(height: 14),
+              const Text('URGENCY', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: _sheetToggle('Routine', urgency == 'routine', () => setSheetState(() => urgency = 'routine'), fill: true)),
+                const SizedBox(width: 8),
+                Expanded(child: _sheetToggle('Urgent', urgency == 'urgent', () => setSheetState(() => urgency = 'urgent'), fill: true)),
+              ]),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (reasonController.text.trim().isEmpty) return;
+                    if (mode == 'specialty' && specialty == null) return;
+                    if (mode == 'doctor' && selectedProvider == null) return;
+                    Navigator.pop(sheetContext, true);
+                  },
+                  child: const Text('Create referral'),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    await _runBusy(() async {
+      await _api.createReferral(
+        widget.appointmentId,
+        targetSpecialty: mode == 'specialty' ? specialty : null,
+        targetProviderId: mode == 'doctor' ? selectedProvider!['id'] as String : null,
+        reason: reasonController.text.trim(),
+        notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+        urgency: urgency,
+      );
+      _referrals = await _api.getReferrals(widget.appointmentId);
+      setState(() {});
+      await _snack('Referral created');
     });
   }
 
@@ -503,6 +655,23 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
               children: [
+                if (_previsitBrief != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(13),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: docAccentLight, borderRadius: BorderRadius.circular(docRadiusMd)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        const Icon(Icons.auto_awesome_rounded, size: 15, color: docAccentDark),
+                        const SizedBox(width: 6),
+                        const Text('PRE-VISIT BRIEF', style: TextStyle(fontSize: 10, color: docAccentDark, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                      ]),
+                      const SizedBox(height: 8),
+                      Text(_previsitBrief!, style: const TextStyle(fontSize: 12.5, height: 1.5, color: docTextPrimary)),
+                    ]),
+                  ),
+                ],
                 _section('Vitals', Icons.monitor_heart_rounded, [
               if (_vitals.isNotEmpty) _latestVitalsRow(_vitals.first as Map<String, dynamic>),
               if (_vitals.isNotEmpty) const SizedBox(height: 10),
@@ -639,6 +808,35 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('• ${(o['test_names'] as List).join(', ')}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
               ],
             ], sectionKey: _labsKey),
+            _section('Refer to specialist', Icons.forward_to_inbox_rounded, [
+              if (_referrals.isNotEmpty) ...[
+                for (final r in _referrals.cast<Map<String, dynamic>>())
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(color: docSurfaceRaised, borderRadius: BorderRadius.circular(docRadiusSm)),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                            r['target_provider_id'] != null ? 'Specific doctor selected' : (r['target_specialty'] as String? ?? 'Specialist'),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                          ),
+                          Text(r['reason'] ?? '', style: const TextStyle(fontSize: 11.5, color: docMuted)),
+                        ]),
+                      ),
+                      if (r['urgency'] == 'urgent')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: docDangerBg, borderRadius: BorderRadius.circular(999)),
+                          child: const Text('Urgent', style: TextStyle(color: docDanger, fontWeight: FontWeight.w700, fontSize: 9.5)),
+                        ),
+                    ]),
+                  ),
+                const SizedBox(height: 4),
+              ],
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Add referral'), onPressed: _openReferralSheet)),
+            ]),
             _section('Assessment & Plan', Icons.notes_rounded, [
               TextField(controller: _assessment, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes')),
               const SizedBox(height: 10),

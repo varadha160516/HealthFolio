@@ -108,6 +108,25 @@ class ApiClient {
   // the searchable "Select lab tests" sheet instead of a fixed short chip list.
   Future<List<dynamic>> getLabTestCatalog() async => await _get('/lab-tests/catalog');
 
+  // --- Referrals ---
+  Future<Map<String, dynamic>> createReferral(
+    String appointmentId, {
+    String? targetSpecialty,
+    String? targetProviderId,
+    required String reason,
+    String? notes,
+    String urgency = 'routine',
+  }) async =>
+      await _post('/appointments/$appointmentId/referrals', {
+        'target_specialty': targetSpecialty,
+        'target_provider_id': targetProviderId,
+        'reason': reason,
+        'notes': notes,
+        'urgency': urgency,
+      });
+  Future<List<dynamic>> getReferrals(String appointmentId) async => await _get('/appointments/$appointmentId/referrals');
+  Future<List<dynamic>> searchProviders(String query) async => await _get('/providers/search?q=${Uri.encodeQueryComponent(query)}');
+
   // --- Follow-up ---
   Future<Map<String, dynamic>> scheduleFollowUp(String appointmentId, {required String after, String? reason}) async =>
       await _post('/appointments/$appointmentId/schedule-follow-up', {'after': after, 'reason': reason});

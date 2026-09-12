@@ -13,6 +13,7 @@ import 'tabs/medications_tab.dart';
 import 'tabs/lab_tests_tab.dart';
 import 'tabs/symptoms_tab.dart';
 import 'tabs/safety_check_tab.dart';
+import 'tabs/referrals_tab.dart';
 import 'ai_chat_screen.dart';
 import 'audit_log_screen.dart';
 import '../../theme.dart';
@@ -38,12 +39,14 @@ const _kSections = <(String, IconData, Color, Color)>[
   ('Medications', Icons.medication_rounded, careloopAbnormalBg, careloopDanger),
   ('Lab Tests', Icons.science_rounded, careloopTealBg, careloopTeal),
   ('Safety Check', Icons.verified_user_rounded, careloopSuccessBg, careloopSuccess),
+  ('Referrals', Icons.forward_to_inbox_rounded, careloopPeriwinkle, careloopInfo),
 ];
 
 final _kDocumentsIndex = _kSections.indexWhere((s) => s.$1 == 'Documents');
 /// Exposed so other screens (the family dashboard's safety-flag summary card) can deep-link
 /// straight into this section instead of always opening on Profile.
 final int kSafetyCheckTabIndex = _kSections.indexWhere((s) => s.$1 == 'Safety Check');
+final int kReferralsTabIndex = _kSections.indexWhere((s) => s.$1 == 'Referrals');
 
 /// Left-panel navigation + right-panel detail (per the Liquid Glass brief), replacing the
 /// previous horizontal TabBar. Each section's content is only built the first time it's
@@ -145,8 +148,10 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
         return MedicationsTab(key: ValueKey('meds-$_refreshKey'), memberId: memberId);
       case 8:
         return LabTestsTab(key: ValueKey('labtests-$_refreshKey'), memberId: memberId);
-      default:
+      case 9:
         return SafetyCheckTab(key: ValueKey('safety-$_refreshKey'), memberId: memberId);
+      default:
+        return ReferralsTab(key: ValueKey('referrals-$_refreshKey'), memberId: memberId);
     }
   }
 

@@ -99,6 +99,7 @@ export interface AppointmentRow {
   sharing_preference: string | null;
   reason_for_visit: string | null;
   consent_grant_id: string | null;
+  referral_id: string | null;
 }
 
 /** Lazily resolves consent_requested -> consent_expired once the window has passed, rather than
@@ -185,16 +186,28 @@ appointmentsRouter.get('/appointments/:id', requireAuth, (req, res) => {
 appointmentsRouter.post('/appointments', requireAuth, (req, res) => {
   const session = req.session!;
   if (session.role !== 'member_primary' && session.role !== 'member_dependent') return res.status(403).json({ error: 'Only members can book' });
-  const { member_id, provider_id, datetime, sharing_preference, reason_for_visit } = req.body ?? {};
+  const { member_id, provider_id, datetime, sharing_preference, reason_for_visit, referral_id } = req.body ?? {};
   if (!member_id || !provider_id || !datetime) return res.status(400).json({ error: 'member_id, provider_id, datetime are required' });
   if (!assertFamilyAccess(req, res, member_id)) return;
   const availabilityError = checkProviderAvailable(provider_id, datetime);
   if (availabilityError) return res.status(409).json({ error: availabilityError });
+
+  let referral: { id: string; member_id: string; status: string } | undefined;
+  if (referral_id) {
+    referral = db.prepare('SELECT id, member_id, status FROM referrals WHERE id = ?').get(referral_id) as typeof referral;
+    if (!referral || referral.member_id !== member_id) return res.status(400).json({ error: 'Invalid referral' });
+    if (referral.status !== 'pending') return res.status(409).json({ error: `This referral is already ${referral.status}` });
+  }
+
   const id = uuid();
   db.prepare(
-    `INSERT INTO appointments (id, member_id, provider_id, datetime, status, sharing_preference, reason_for_visit, consent_grant_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'scheduled', ?, ?, NULL, ?, ?)`
-  ).run(id, member_id, provider_id, datetime, sharing_preference ?? null, reason_for_visit?.trim() || null, now(), now());
+    `INSERT INTO appointments (id, member_id, provider_id, datetime, status, sharing_preference, reason_for_visit, consent_grant_id, referral_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'scheduled', ?, ?, NULL, ?, ?, ?)`
+  ).run(id, member_id, provider_id, datetime, sharing_preference ?? null, reason_for_visit?.trim() || null, referral?.id ?? null, now(), now());
+
+  if (referral) {
+    db.prepare(`UPDATE referrals SET status = 'booked', resulting_appointment_id = ?, updated_at = ? WHERE id = ?`).run(id, now(), referral.id);
+  }
   res.status(201).json({ id });
 });
 
@@ -516,6 +529,7 @@ appointmentsRouter.post('/appointments/:id/complete', requireAuth, requireRole('
 
   db.prepare(`UPDATE appointments SET status = 'completed', updated_at = ? WHERE id = ?`).run(now(), appt.id);
   if (appt.consent_grant_id) db.prepare(`UPDATE consent_grants SET revoked_at = ? WHERE id = ?`).run(now(), appt.consent_grant_id);
+  if (appt.referral_id) db.prepare(`UPDATE referrals SET status = 'completed', updated_at = ? WHERE id = ?`).run(now(), appt.referral_id);
   logAudit(req.session!.userId, req.session!.role, 'visit_completed_access_revoked', appt.member_id, { appointmentId: appt.id });
   res.json({ ok: true, invoiceId });
 });
@@ -618,4 +632,49 @@ appointmentsRouter.delete('/members/:id/preferred-providers/:providerId', requir
   if (!assertFamilyAccess(req, res, req.params.id)) return;
   db.prepare('DELETE FROM preferred_providers WHERE member_id = ? AND provider_id = ?').run(req.params.id, req.params.providerId);
   res.status(204).end();
+});
+
+// --- Referrals (member-facing side — creation lives in doctorApp.ts's consultation routes) ---
+
+appointmentsRouter.get('/members/:id/referrals', requireAuth, (req, res) => {
+  if (!assertFamilyAccess(req, res, req.params.id)) return;
+  const rows = db
+    .prepare(
+      `SELECT r.*, rp.name AS referring_provider_name, rp.specialty AS referring_provider_specialty,
+              tp.name AS target_provider_name, tp.specialty AS target_provider_specialty
+       FROM referrals r
+       JOIN providers rp ON rp.id = r.referring_provider_id
+       LEFT JOIN providers tp ON tp.id = r.target_provider_id
+       WHERE r.member_id = ?
+       ORDER BY r.created_at DESC`
+    )
+    .all(req.params.id);
+  res.json(rows);
+});
+
+// Home Screen's summary card — every pending referral across the family, so a member sees "Dr. X
+// referred you to a Cardiologist" without opening each person's profile individually.
+appointmentsRouter.get('/family/referrals-summary', requireAuth, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT r.id, r.member_id, m.name AS member_name, r.reason, r.urgency, r.target_specialty, r.target_provider_id,
+              rp.name AS referring_provider_name, tp.name AS target_provider_name
+       FROM referrals r
+       JOIN members m ON m.id = r.member_id
+       JOIN providers rp ON rp.id = r.referring_provider_id
+       LEFT JOIN providers tp ON tp.id = r.target_provider_id
+       WHERE m.family_id = ? AND r.status = 'pending'
+       ORDER BY r.urgency = 'urgent' DESC, r.created_at DESC`
+    )
+    .all(req.session!.familyId);
+  res.json(rows);
+});
+
+appointmentsRouter.post('/referrals/:id/cancel', requireAuth, (req, res) => {
+  const referral = db.prepare('SELECT id, member_id, status FROM referrals WHERE id = ?').get(req.params.id) as { id: string; member_id: string; status: string } | undefined;
+  if (!referral) return res.status(404).json({ error: 'Not found' });
+  if (!assertFamilyAccess(req, res, referral.member_id)) return;
+  if (referral.status !== 'pending') return res.status(409).json({ error: `Cannot cancel a referral that's already ${referral.status}` });
+  db.prepare(`UPDATE referrals SET status = 'cancelled', updated_at = ? WHERE id = ?`).run(now(), referral.id);
+  res.json({ ok: true });
 });

@@ -242,6 +242,10 @@ CREATE TABLE IF NOT EXISTS appointments (
   -- booking — lets the Doctor App notifications feed find "follow-up due today" without guessing
   -- from reason_for_visit text.
   is_follow_up INTEGER NOT NULL DEFAULT 0,
+  -- Set when a member books this appointment off a doctor's referral (see the referrals table
+  -- below) — lets the pre-visit prep brief pull in the referring doctor's reason/notes the moment
+  -- this specific visit's own consent unlocks, same fail-closed gate as everything else here.
+  referral_id TEXT REFERENCES referrals(id),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -289,6 +293,30 @@ CREATE TABLE IF NOT EXISTS prescription_line_items (
   duration TEXT,
   instructions TEXT
 );
+
+-- Structured referrals: a doctor sends a patient to a specialist with real clinical context
+-- attached (reason + notes), instead of a slip of paper — that context reaches the receiving
+-- doctor automatically via the pre-visit brief (see previsitPrep.ts) the moment THEIR OWN
+-- appointment's consent unlocks. This never bypasses consent: the referral itself carries no
+-- patient data access, it's just a note the receiving doctor's future brief can draw on once they
+-- have their own legitimate, patient-granted access.
+CREATE TABLE IF NOT EXISTS referrals (
+  id TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL REFERENCES members(id),
+  referring_appointment_id TEXT NOT NULL REFERENCES appointments(id),
+  referring_provider_id TEXT NOT NULL REFERENCES providers(id),
+  target_specialty TEXT, -- one of SPECIALIZATIONS; null if a specific doctor was named instead
+  target_provider_id TEXT REFERENCES providers(id), -- set if the referring doctor named a specific specialist
+  reason TEXT NOT NULL,
+  notes TEXT, -- longer clinical context carried to the receiving doctor's pre-visit brief
+  urgency TEXT NOT NULL DEFAULT 'routine' CHECK (urgency IN ('routine','urgent')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','booked','completed','cancelled')),
+  resulting_appointment_id TEXT REFERENCES appointments(id), -- set once the family books the referred visit
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_referrals_member ON referrals (member_id, status, created_at DESC);
 
 -- Lab Tests: a small fixed catalog (no real lab-partner integration exists) and bookings against
 -- it. member_id is nullable — a booking can be for a real family member OR a "just book a test"

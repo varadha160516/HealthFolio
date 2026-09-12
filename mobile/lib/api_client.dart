@@ -261,6 +261,11 @@ class ApiClient {
   Future<List<dynamic>> getAppointments() async => await _get('/appointments');
   Future<Map<String, dynamic>> getAppointment(String id) async => await _get('/appointments/$id');
   Future<void> bookAppointment(Map<String, dynamic> payload) => _post('/appointments', payload);
+
+  // --- Referrals ---
+  Future<List<dynamic>> getMemberReferrals(String memberId) async => await _get('/members/$memberId/referrals');
+  Future<void> cancelReferral(String id) => _post('/referrals/$id/cancel');
+  Future<List<dynamic>> getFamilyReferralsSummary() async => await _get('/family/referrals-summary');
   Future<void> editAppointment(String id, Map<String, dynamic> payload) => _patch('/appointments/$id', payload);
   Future<void> cancelAppointment(String id) => _post('/appointments/$id/cancel', {});
   Future<void> checkIn(String id) => _post('/appointments/$id/check-in', {});
