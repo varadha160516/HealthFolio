@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Same backend CareLoop/HealthFolio already runs — this app is a separate client against the
@@ -179,4 +181,66 @@ class ApiClient {
 
   // --- Compliance ---
   Future<List<dynamic>> getMyAuditLog() async => await _get('/providers/me/audit-log');
+
+  // --- Provider onboarding (public — no session exists yet for an applicant) ---
+  Future<List<dynamic>> getPublicSpecializations() async => await _get('/public/specializations');
+  Future<List<dynamic>> getPublicClinics() async => await _get('/public/clinics');
+
+  Future<Map<String, dynamic>> submitProviderApplication(Map<String, dynamic> fields, List<ApplicationFile> files) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$apiBaseUrl/provider-applications'));
+    _fillApplicationRequest(req, fields, files);
+    final resp = await http.Response.fromStream(await req.send());
+    return _handle(resp) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> resubmitProviderApplication(String applicationId, Map<String, dynamic> fields, List<ApplicationFile> files) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$apiBaseUrl/provider-applications/$applicationId/resubmit'));
+    _fillApplicationRequest(req, fields, files);
+    final resp = await http.Response.fromStream(await req.send());
+    return (_handle(resp) as Map<String, dynamic>?) ?? {};
+  }
+
+  void _fillApplicationRequest(http.MultipartRequest req, Map<String, dynamic> fields, List<ApplicationFile> files) {
+    fields.forEach((k, v) {
+      if (v != null) req.fields[k] = '$v';
+    });
+    if (files.isNotEmpty) req.fields['document_types'] = jsonEncode(files.map((f) => f.documentType).toList());
+    for (final f in files) {
+      req.files.add(http.MultipartFile.fromBytes('documents', f.bytes, filename: f.filename, contentType: _mediaTypeForFilename(f.filename)));
+    }
+  }
+
+  Future<Map<String, dynamic>> getApplicationStatus({required String email, required String referenceCode}) async =>
+      await _get('/provider-applications/status?email=${Uri.encodeQueryComponent(email)}&reference_code=${Uri.encodeQueryComponent(referenceCode)}');
+
+  // --- Admin: provider onboarding review queue ---
+  Future<List<dynamic>> getProviderApplications({String? status}) async => await _get('/admin/provider-applications${status != null ? '?status=$status' : ''}');
+  Future<Map<String, dynamic>> getProviderApplicationDetail(String id) async => await _get('/admin/provider-applications/$id');
+  Future<Uint8List> getApplicationDocumentBytes(String applicationId, String documentId) async {
+    final resp = await http.get(Uri.parse('$apiBaseUrl/admin/provider-applications/$applicationId/documents/$documentId/file'), headers: _headers);
+    if (resp.statusCode < 200 || resp.statusCode >= 300) throw ApiException('Could not load this document (${resp.statusCode})', resp.statusCode);
+    return resp.bodyBytes;
+  }
+
+  Future<Map<String, dynamic>> approveProviderApplication(String id) async => await _post('/admin/provider-applications/$id/approve');
+  Future<void> rejectProviderApplication(String id, String reason) => _post('/admin/provider-applications/$id/reject', {'reason': reason});
+}
+
+MediaType _mediaTypeForFilename(String filename) {
+  final lower = filename.toLowerCase();
+  if (lower.endsWith('.png')) return MediaType('image', 'png');
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return MediaType('image', 'jpeg');
+  if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+  if (lower.endsWith('.pdf')) return MediaType('application', 'pdf');
+  return MediaType('application', 'octet-stream');
+}
+
+/// One document picked for a provider application — `documentType` matches the server's
+/// `provider_application_documents.document_type` enum (registration_certificate, government_id,
+/// qualification_certificate, clinic_proof, other).
+class ApplicationFile {
+  final String documentType;
+  final String filename;
+  final List<int> bytes;
+  ApplicationFile({required this.documentType, required this.filename, required this.bytes});
 }

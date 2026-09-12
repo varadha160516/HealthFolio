@@ -176,6 +176,48 @@ CREATE TABLE IF NOT EXISTS providers (
   bank_upi_id TEXT
 );
 
+-- Provider onboarding — a self-serve application, reviewed by a platform_admin before any
+-- providers/users row is created. Nothing here is login-capable on its own; only approval
+-- creates the real account (see POST /admin/provider-applications/:id/approve).
+CREATE TABLE IF NOT EXISTS provider_applications (
+  id TEXT PRIMARY KEY,
+  reference_code TEXT NOT NULL UNIQUE, -- short code the applicant keeps to check status/resubmit, since there's no email service to notify them
+  email TEXT NOT NULL,
+  password_hash TEXT NOT NULL, -- the applicant's chosen password, hashed at submission time so approval never needs to touch it in plaintext
+  full_name TEXT NOT NULL,
+  phone TEXT,
+  role_requested TEXT NOT NULL CHECK (role_requested IN ('doctor','clinic_admin')),
+  specialty TEXT,
+  registration_number TEXT,
+  qualifications TEXT,
+  years_of_experience INTEGER,
+  gst_number TEXT,
+  default_fee REAL,
+  clinic_mode TEXT NOT NULL CHECK (clinic_mode IN ('existing','new')),
+  clinic_id TEXT REFERENCES clinics(id), -- set when clinic_mode = 'existing'
+  new_clinic_name TEXT,
+  new_clinic_address TEXT,
+  new_clinic_city TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  rejection_reason TEXT,
+  reviewed_by_user_id TEXT REFERENCES users(id),
+  reviewed_at TEXT,
+  created_provider_id TEXT REFERENCES providers(id), -- set once approved
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_applications_status ON provider_applications (status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS provider_application_documents (
+  id TEXT PRIMARY KEY,
+  application_id TEXT NOT NULL REFERENCES provider_applications(id),
+  document_type TEXT NOT NULL CHECK (document_type IN ('registration_certificate','government_id','qualification_certificate','clinic_proof','other')),
+  storage_path TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 -- A member's saved/favorite doctors — bookable regardless of distance (unlike the
 -- specialization-based nearby search, which is location-filtered).
 CREATE TABLE IF NOT EXISTS preferred_providers (

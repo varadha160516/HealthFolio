@@ -1,9 +1,12 @@
 import { Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { currentDictionaryVersion } from '../dictionary/loader.js';
 import { draftCandidateResolution, scanForDrift } from '../pipeline/dictionaryCuration.js';
+import { logAudit } from '../audit.js';
 
 export const adminRouter = Router();
 // Scoped to '/admin/*' — without this path prefix, `.use()` would fire for EVERY request
@@ -177,5 +180,101 @@ adminRouter.post('/admin/dictionary/drift-flags/:id/dismiss', (req, res) => {
   const row = db.prepare('SELECT id FROM dictionary_drift_flags WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   db.prepare(`UPDATE dictionary_drift_flags SET status = 'dismissed', resolved_at = ? WHERE id = ?`).run(now(), req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Provider onboarding review queue ---
+
+const APPLICATION_DOC_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.pdf': 'application/pdf',
+};
+
+adminRouter.get('/admin/provider-applications', (req, res) => {
+  const status = req.query.status as string | undefined;
+  const rows = status
+    ? db.prepare('SELECT * FROM provider_applications WHERE status = ? ORDER BY created_at DESC').all(status)
+    : db.prepare('SELECT * FROM provider_applications ORDER BY created_at DESC').all();
+  res.json(rows);
+});
+
+adminRouter.get('/admin/provider-applications/:id', (req, res) => {
+  const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
+  if (!app) return res.status(404).json({ error: 'Not found' });
+  const clinic = app.clinic_id ? db.prepare('SELECT * FROM clinics WHERE id = ?').get(app.clinic_id) : null;
+  const documents = db.prepare('SELECT id, document_type, filename, created_at FROM provider_application_documents WHERE application_id = ? ORDER BY created_at').all(app.id);
+  res.json({ application: app, clinic, documents });
+});
+
+adminRouter.get('/admin/provider-applications/:id/documents/:docId/file', (req, res) => {
+  const doc = db.prepare('SELECT * FROM provider_application_documents WHERE id = ? AND application_id = ?').get(req.params.docId, req.params.id) as
+    | { storage_path: string; filename: string }
+    | undefined;
+  if (!doc) return res.status(404).json({ error: 'Not found' });
+  const filePath = path.join(doc.storage_path, doc.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+  res.setHeader('Content-Type', APPLICATION_DOC_MIME[path.extname(doc.filename).toLowerCase()] ?? 'application/octet-stream');
+  fs.createReadStream(filePath).pipe(res);
+});
+
+adminRouter.post('/admin/provider-applications/:id/approve', (req, res) => {
+  const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
+  if (!app) return res.status(404).json({ error: 'Not found' });
+  if (app.status !== 'pending') return res.status(409).json({ error: `Application is already ${app.status}` });
+  if (db.prepare('SELECT id FROM users WHERE email = ?').get(app.email)) {
+    return res.status(409).json({ error: 'An account with this email was created since the application was submitted' });
+  }
+
+  const timestamp = now();
+  let clinicId = app.clinic_id as string | null;
+  if (app.clinic_mode === 'new') {
+    clinicId = uuid();
+    db.prepare('INSERT INTO clinics (id, name, address, city) VALUES (?, ?, ?, ?)').run(clinicId, app.new_clinic_name, app.new_clinic_address, app.new_clinic_city);
+  }
+
+  const providerId = uuid();
+  db.prepare(
+    `INSERT INTO providers (id, type, name, specialty, clinic_id, default_fee, registration_number, qualifications, years_of_experience, gst_number)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(providerId, app.role_requested, app.full_name, app.specialty, clinicId, app.default_fee, app.registration_number, app.qualifications, app.years_of_experience, app.gst_number);
+
+  const role = app.role_requested === 'doctor' ? 'provider_doctor' : 'provider_clinic_admin';
+  db.prepare('INSERT INTO users (id, email, password_hash, role, display_name, provider_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    uuid(),
+    app.email,
+    app.password_hash,
+    role,
+    app.full_name,
+    providerId,
+    timestamp
+  );
+
+  db.prepare(
+    `UPDATE provider_applications SET status = 'approved', created_provider_id = ?, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ? WHERE id = ?`
+  ).run(providerId, req.session!.userId, timestamp, timestamp, app.id);
+
+  logAudit(req.session!.userId, req.session!.role, 'provider_application_approved', null, { applicationId: app.id, providerId, email: app.email });
+  res.json({ ok: true, providerId, clinicId });
+});
+
+adminRouter.post('/admin/provider-applications/:id/reject', (req, res) => {
+  const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
+  if (!app) return res.status(404).json({ error: 'Not found' });
+  if (app.status !== 'pending') return res.status(409).json({ error: `Application is already ${app.status}` });
+  const reason = (req.body?.reason as string | undefined)?.trim();
+  if (!reason) return res.status(400).json({ error: 'A rejection reason is required' });
+
+  const timestamp = now();
+  db.prepare(`UPDATE provider_applications SET status = 'rejected', rejection_reason = ?, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ? WHERE id = ?`).run(
+    reason,
+    req.session!.userId,
+    timestamp,
+    timestamp,
+    app.id
+  );
+  logAudit(req.session!.userId, req.session!.role, 'provider_application_rejected', null, { applicationId: app.id, email: app.email, reason });
   res.json({ ok: true });
 });

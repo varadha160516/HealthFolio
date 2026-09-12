@@ -39,8 +39,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> login(String email, String password) async {
     final s = await api.login(email, password);
-    if (!s.isProvider) {
-      throw ApiException('ClinDesk is for doctors and clinic staff only.', 403);
+    if (!s.isProvider && s.role != 'platform_admin') {
+      throw ApiException('ClinDesk is for doctors, clinic staff, and admins only.', 403);
     }
     await api.setToken(s.token);
     session = s;

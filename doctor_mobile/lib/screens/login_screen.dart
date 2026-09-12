@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
 import '../theme.dart';
+import 'application_status_screen.dart';
+import 'provider_application_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -60,6 +62,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 child: ElevatedButton(onPressed: _busy ? null : _login, child: Text(_busy ? 'Signing in…' : 'Sign in')),
               ),
+              const SizedBox(height: 18),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProviderApplicationScreen())),
+                  child: const Text('Apply to join'),
+                ),
+                Container(width: 1, height: 14, color: docBorder),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ApplicationStatusScreen())),
+                  child: const Text('Check application status'),
+                ),
+              ]),
             ]),
           ),
         ),

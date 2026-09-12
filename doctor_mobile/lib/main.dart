@@ -5,6 +5,7 @@ import 'auth_provider.dart';
 import 'theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
+import 'screens/admin/admin_shell.dart';
 
 void main() {
   runApp(const DoctorConsoleApp());
@@ -57,6 +58,7 @@ class AuthGate extends StatelessWidget {
       );
     }
     if (!auth.isLoggedIn) return const LoginScreen();
+    if (auth.session!.role == 'platform_admin') return const AdminShell();
     return const HomeShell();
   }
 }
