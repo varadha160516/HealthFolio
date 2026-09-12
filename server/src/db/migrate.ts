@@ -348,6 +348,23 @@ export function runMigrations(db: Db) {
       created_at TEXT NOT NULL
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS safety_flags (
+      id TEXT PRIMARY KEY,
+      member_id TEXT NOT NULL REFERENCES members(id),
+      kind TEXT NOT NULL CHECK (kind IN ('cross_provider_duplicate_medication','allergy_conflict','duplicate_lab_test')),
+      severity TEXT NOT NULL DEFAULT 'info' CHECK (severity IN ('info','warning')),
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      related_json TEXT NOT NULL DEFAULT '{}',
+      dedupe_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','dismissed','discussed')),
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_safety_flags_member ON safety_flags (member_id, status, created_at DESC)');
 }
 
 /** Best-effort backfill by display_name pattern, not a hand-curated per-row mapping — the

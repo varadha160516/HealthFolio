@@ -12,6 +12,7 @@ import 'tabs/add_document_sheet.dart';
 import 'tabs/medications_tab.dart';
 import 'tabs/lab_tests_tab.dart';
 import 'tabs/symptoms_tab.dart';
+import 'tabs/safety_check_tab.dart';
 import 'ai_chat_screen.dart';
 import 'audit_log_screen.dart';
 import '../../theme.dart';
@@ -36,9 +37,13 @@ const _kSections = <(String, IconData, Color, Color)>[
   ('Documents', Icons.folder_rounded, careloopAccentLight, careloopAccent),
   ('Medications', Icons.medication_rounded, careloopAbnormalBg, careloopDanger),
   ('Lab Tests', Icons.science_rounded, careloopTealBg, careloopTeal),
+  ('Safety Check', Icons.verified_user_rounded, careloopSuccessBg, careloopSuccess),
 ];
 
-final _kDocumentsIndex = _kSections.length - 3;
+final _kDocumentsIndex = _kSections.indexWhere((s) => s.$1 == 'Documents');
+/// Exposed so other screens (the family dashboard's safety-flag summary card) can deep-link
+/// straight into this section instead of always opening on Profile.
+final int kSafetyCheckTabIndex = _kSections.indexWhere((s) => s.$1 == 'Safety Check');
 
 /// Left-panel navigation + right-panel detail (per the Liquid Glass brief), replacing the
 /// previous horizontal TabBar. Each section's content is only built the first time it's
@@ -46,7 +51,8 @@ final _kDocumentsIndex = _kSections.length - 3;
 /// this screen doesn't fire all nine tabs' API calls at once, just the first (Profile).
 class MemberProfileScreen extends StatefulWidget {
   final Map<String, dynamic> member;
-  const MemberProfileScreen({super.key, required this.member});
+  final int initialIndex;
+  const MemberProfileScreen({super.key, required this.member, this.initialIndex = 0});
 
   @override
   State<MemberProfileScreen> createState() => _MemberProfileScreenState();
@@ -55,7 +61,7 @@ class MemberProfileScreen extends StatefulWidget {
 const _kNavSidePrefKey = 'profile_nav_on_right';
 
 class _MemberProfileScreenState extends State<MemberProfileScreen> {
-  int _selected = 0;
+  late int _selected = widget.initialIndex;
   int _refreshKey = 0;
   // Collapsed by default — the panel only opens when the user explicitly taps the toggle chevron.
   bool _navExpanded = false;
@@ -69,7 +75,7 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
   void initState() {
     super.initState();
     _slots = List.generate(_kSections.length, (_) => const SizedBox.shrink());
-    _slots[0] = _buildTab(0);
+    _slots[_selected] = _buildTab(_selected);
     _loadNavSide();
   }
 
@@ -137,8 +143,10 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
         return DocumentsTab(key: ValueKey('docs-$_refreshKey'), memberId: memberId);
       case 7:
         return MedicationsTab(key: ValueKey('meds-$_refreshKey'), memberId: memberId);
-      default:
+      case 8:
         return LabTestsTab(key: ValueKey('labtests-$_refreshKey'), memberId: memberId);
+      default:
+        return SafetyCheckTab(key: ValueKey('safety-$_refreshKey'), memberId: memberId);
     }
   }
 

@@ -25,6 +25,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   List<dynamic>? _reminders;
   bool _remindersLoading = false;
   List<dynamic>? _medReminders;
+  List<dynamic>? _safetyFlags;
   bool _showAdd = false;
   final _name = TextEditingController();
   final _dob = TextEditingController();
@@ -56,6 +57,20 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     if (mounted) setState(() => _members = members);
     _loadReminders();
     _loadMedReminders();
+    _loadSafetyFlags();
+  }
+
+  /// Cross-provider safety net summary — how many members have an open flag, across every doctor
+  /// and lab test on file, not just what one visit's own summary card would show. Fails silently,
+  /// same reasoning as the other Home Screen cards.
+  Future<void> _loadSafetyFlags() async {
+    try {
+      final api = context.read<AuthProvider>().api;
+      final r = await api.getFamilySafetyFlagsSummary();
+      if (mounted) setState(() => _safetyFlags = r);
+    } catch (_) {
+      // silent — see doc comment above
+    }
   }
 
   /// Today's due/upcoming doses across the whole family — shown on Home so a reminder doesn't
@@ -245,6 +260,42 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 ),
               ),
             ),
+          // Cross-provider safety net — flags computed across EVERY doctor and lab test on a
+          // member's record, something no single provider's own view can show (see
+          // safety_check_tab.dart). Tapping a row deep-links straight into that member's Safety
+          // Check section instead of landing on Profile.
+          if (_safetyFlags?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: GlassPane(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.verified_user_rounded, size: 16, color: careloopAccent),
+                      const SizedBox(width: 8),
+                      Text('Health safety check', style: careloopSectionHeading()),
+                    ]),
+                    const SizedBox(height: 10),
+                    Column(
+                      children: [
+                        for (final (i, s) in _safetyFlags!.cast<Map<String, dynamic>>().indexed) ...[
+                          if (i > 0) const SizedBox(height: 10),
+                          _SafetyFlagSummaryTile(
+                            summary: s,
+                            onTap: () async {
+                              final member = _members!.cast<Map<String, dynamic>>().firstWhere((m) => m['id'] == s['memberId'], orElse: () => {'id': s['memberId'], 'name': s['memberName']});
+                              await Navigator.push(context, pushRoute(MemberProfileScreen(member: member, initialIndex: kSafetyCheckTabIndex)));
+                              if (mounted) _loadSafetyFlags();
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_showAdd)
             SectionCard(
               title: 'Add a dependent',
@@ -370,6 +421,38 @@ class _AddButton extends StatelessWidget {
           Icon(showing ? Icons.close_rounded : Icons.add_rounded, size: 17, color: showing ? careloopMuted : careloopOnSage),
           const SizedBox(width: 4),
           Text(showing ? 'Cancel' : 'Add', style: TextStyle(color: showing ? careloopMuted : careloopOnSage, fontWeight: FontWeight.w500, fontSize: 13.5)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// One family member's open-flag count from GET /family/safety-flags-summary.
+class _SafetyFlagSummaryTile extends StatelessWidget {
+  final Map<String, dynamic> summary;
+  final VoidCallback onTap;
+  const _SafetyFlagSummaryTile({required this.summary, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = summary['openCount'] as int;
+    return InkWell(
+      borderRadius: BorderRadius.circular(careloopRadiusSm),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: careloopWarningBg, borderRadius: BorderRadius.circular(careloopRadiusSm)),
+        child: Row(children: [
+          const Icon(Icons.warning_amber_rounded, size: 17, color: careloopWarning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${summary['memberName']} — $count item${count == 1 ? '' : 's'} worth reviewing',
+              style: const TextStyle(color: careloopWarning, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, size: 18, color: careloopWarning),
         ]),
       ),
     );

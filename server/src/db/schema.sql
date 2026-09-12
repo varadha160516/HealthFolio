@@ -362,6 +362,28 @@ CREATE TABLE IF NOT EXISTS medication_dose_logs (
   logged_at TEXT NOT NULL
 );
 
+-- Cross-provider safety net (see server/src/pipeline/safetyNet.ts): structured-fact checks run
+-- across a member's FULL active record — every prescriber, every lab order, self-booked or
+-- doctor-ordered — something no single doctor can see given the app's per-visit consent model.
+-- Deliberately the same conservative philosophy as medicationReconciliation.ts: name-matching
+-- against recorded facts only, never a model guessing at pharmacology. Surfaced to the member/
+-- family only, since they're the one party who legitimately sees the whole picture.
+CREATE TABLE IF NOT EXISTS safety_flags (
+  id TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL REFERENCES members(id),
+  kind TEXT NOT NULL CHECK (kind IN ('cross_provider_duplicate_medication','allergy_conflict','duplicate_lab_test')),
+  severity TEXT NOT NULL DEFAULT 'info' CHECK (severity IN ('info','warning')), -- no 'critical' tier — a nudge to discuss, never an emergency claim
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  related_json TEXT NOT NULL DEFAULT '{}', -- structured refs (schedule/booking ids, provider names, dates) so the UI can show its work
+  dedupe_key TEXT NOT NULL, -- stable per (kind + the specific facts involved) so re-running the check never spams duplicate rows
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','dismissed','discussed')),
+  created_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_safety_flags_member ON safety_flags (member_id, status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS insurance_policies (
   id TEXT PRIMARY KEY,
   member_id TEXT NOT NULL REFERENCES members(id),
