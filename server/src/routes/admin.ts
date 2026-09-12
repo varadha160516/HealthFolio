@@ -193,16 +193,21 @@ const APPLICATION_DOC_MIME: Record<string, string> = {
   '.pdf': 'application/pdf',
 };
 
+// password_hash never leaves the server past this point — the admin UI has no use for it, and
+// there's no reason to put even a hash on the wire when the endpoint doesn't need to.
+const APPLICATION_LIST_COLUMNS =
+  'id, reference_code, email, full_name, phone, role_requested, specialty, registration_number, qualifications, years_of_experience, gst_number, default_fee, clinic_mode, clinic_id, new_clinic_name, new_clinic_address, new_clinic_city, status, rejection_reason, reviewed_by_user_id, reviewed_at, created_provider_id, created_at, updated_at';
+
 adminRouter.get('/admin/provider-applications', (req, res) => {
   const status = req.query.status as string | undefined;
   const rows = status
-    ? db.prepare('SELECT * FROM provider_applications WHERE status = ? ORDER BY created_at DESC').all(status)
-    : db.prepare('SELECT * FROM provider_applications ORDER BY created_at DESC').all();
+    ? db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS} FROM provider_applications WHERE status = ? ORDER BY created_at DESC`).all(status)
+    : db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS} FROM provider_applications ORDER BY created_at DESC`).all();
   res.json(rows);
 });
 
 adminRouter.get('/admin/provider-applications/:id', (req, res) => {
-  const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
+  const app = db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS} FROM provider_applications WHERE id = ?`).get(req.params.id) as any;
   if (!app) return res.status(404).json({ error: 'Not found' });
   const clinic = app.clinic_id ? db.prepare('SELECT * FROM clinics WHERE id = ?').get(app.clinic_id) : null;
   const documents = db.prepare('SELECT id, document_type, filename, created_at FROM provider_application_documents WHERE application_id = ? ORDER BY created_at').all(app.id);
