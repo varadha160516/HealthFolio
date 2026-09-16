@@ -412,6 +412,26 @@ CREATE TABLE IF NOT EXISTS safety_flags (
 
 CREATE INDEX IF NOT EXISTS idx_safety_flags_member ON safety_flags (member_id, status, created_at DESC);
 
+-- A member's own record of a visit to a doctor NOT on CareLoop — the realistic alternative to a
+-- real external-EHR integration (ABDM/HPR sandbox access is blocked pending real credentials).
+-- Purely self-declared, same trust level as everything else a member types in. Its real value
+-- isn't the record itself — it's that any medications logged from this visit go into the normal
+-- medication_schedules table with prescribed_by set to this doctor/hospital, which is exactly what
+-- safetyNet.ts's cross-provider checks already match against, no changes to that file required.
+CREATE TABLE IF NOT EXISTS external_visits (
+  id TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL REFERENCES members(id),
+  doctor_name TEXT NOT NULL,
+  hospital_name TEXT,
+  visit_date TEXT NOT NULL,
+  diagnosis TEXT,
+  notes TEXT,
+  logged_by_user_id TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_external_visits_member ON external_visits (member_id, visit_date DESC);
+
 CREATE TABLE IF NOT EXISTS insurance_policies (
   id TEXT PRIMARY KEY,
   member_id TEXT NOT NULL REFERENCES members(id),

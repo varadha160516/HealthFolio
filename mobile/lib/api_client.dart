@@ -230,6 +230,11 @@ class ApiClient {
   Future<void> deleteMedication(String id) => _delete('/medications/$id');
   Future<void> logMedicationDose(String scheduleId, Map<String, dynamic> payload) => _post('/medications/$scheduleId/doses', payload);
 
+  // --- Outside visits (a doctor not on CareLoop) ---
+  Future<List<dynamic>> getExternalVisits(String memberId) async => await _get('/members/$memberId/external-visits');
+  Future<Map<String, dynamic>> addExternalVisit(String memberId, Map<String, dynamic> payload) async => await _post('/members/$memberId/external-visits', payload);
+  Future<void> deleteExternalVisit(String id) => _delete('/external-visits/$id');
+
   // --- Lab Tests ---
   Future<List<dynamic>> getLabTestCatalog() async => await _get('/lab-tests/catalog');
   Future<List<dynamic>> getFamilyLabTestBookings() async => await _get('/family/lab-test-bookings');

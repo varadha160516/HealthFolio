@@ -367,6 +367,21 @@ export function runMigrations(db: Db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_safety_flags_member ON safety_flags (member_id, status, created_at DESC)');
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS external_visits (
+      id TEXT PRIMARY KEY,
+      member_id TEXT NOT NULL REFERENCES members(id),
+      doctor_name TEXT NOT NULL,
+      hospital_name TEXT,
+      visit_date TEXT NOT NULL,
+      diagnosis TEXT,
+      notes TEXT,
+      logged_by_user_id TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_external_visits_member ON external_visits (member_id, visit_date DESC)');
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS referrals (
       id TEXT PRIMARY KEY,
       member_id TEXT NOT NULL REFERENCES members(id),

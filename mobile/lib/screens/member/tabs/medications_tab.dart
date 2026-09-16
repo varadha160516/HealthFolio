@@ -6,6 +6,7 @@ import '../../../utils/medication_schedule_infer.dart';
 import '../../../utils/motion.dart';
 import '../../../widgets/section_card.dart';
 import 'add_medication_sheet.dart';
+import 'log_external_visit_sheet.dart';
 import 'medication_detail_screen.dart';
 import 'order_medicine_screen.dart';
 import 'pharmacy_orders_screen.dart';
@@ -22,6 +23,7 @@ class MedicationsTab extends StatefulWidget {
 class _MedicationsTabState extends State<MedicationsTab> {
   List<dynamic>? _schedules;
   Map<String, dynamic>? _today;
+  List<dynamic>? _externalVisits;
   _Segment _segment = _Segment.active;
 
   @override
@@ -32,11 +34,12 @@ class _MedicationsTabState extends State<MedicationsTab> {
 
   Future<void> _load() async {
     final api = context.read<AuthProvider>().api;
-    final results = await Future.wait([api.getMedications(widget.memberId), api.getMedicationsToday(widget.memberId)]);
+    final results = await Future.wait([api.getMedications(widget.memberId), api.getMedicationsToday(widget.memberId), api.getExternalVisits(widget.memberId)]);
     if (mounted) {
       setState(() {
         _schedules = results[0] as List<dynamic>;
         _today = results[1] as Map<String, dynamic>;
+        _externalVisits = results[2] as List<dynamic>;
       });
     }
   }
@@ -44,6 +47,41 @@ class _MedicationsTabState extends State<MedicationsTab> {
   Future<void> _openAdd() async {
     final result = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => AddMedicationSheet(memberId: widget.memberId));
     if (result == true) _load();
+  }
+
+  Future<void> _openLogExternalVisit() async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(context: context, isScrollControlled: true, builder: (_) => LogExternalVisitSheet(memberId: widget.memberId));
+    if (result?['saved'] != true || !mounted) return;
+    await _load();
+    if (!mounted) return;
+    final addMeds = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add medications from this visit?'),
+        content: const Text('If this doctor prescribed anything, add it now so it shows up in your schedule and gets checked by Safety Check.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Not now')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Add medication')),
+        ],
+      ),
+    );
+    if (addMeds != true || !mounted) return;
+    final hospital = (result!['hospital_name'] as String?)?.trim();
+    final prescribedBy = hospital != null && hospital.isNotEmpty ? '${result['doctor_name']} ($hospital)' : result['doctor_name'] as String;
+    final added = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddMedicationSheet(
+        memberId: widget.memberId,
+        initial: {'prescribed_by': prescribedBy, 'purpose': result['diagnosis']},
+      ),
+    );
+    if (added == true) _load();
+  }
+
+  Future<void> _deleteExternalVisit(String id) async {
+    await context.read<AuthProvider>().api.deleteExternalVisit(id);
+    _load();
   }
 
   Future<void> _openDetail(String id) async {
@@ -66,7 +104,7 @@ class _MedicationsTabState extends State<MedicationsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_schedules == null || _today == null) return const LoadingCenter();
+    if (_schedules == null || _today == null || _externalVisits == null) return const LoadingCenter();
 
     final schedules = _schedules!.cast<Map<String, dynamic>>();
     final active = schedules.where((s) => s['status'] == 'active').toList();
@@ -162,6 +200,14 @@ class _MedicationsTabState extends State<MedicationsTab> {
           _ImportRow(icon: Icons.local_shipping_rounded, title: 'Order medicine', subtitle: 'Get your active medicines delivered', onTap: _openOrderMedicine),
           const SizedBox(height: 8),
           _ImportRow(icon: Icons.receipt_long_rounded, title: 'My orders', subtitle: 'Track medicine deliveries', onTap: _openOrders),
+          const SizedBox(height: 8),
+          _ImportRow(icon: Icons.add_location_alt_outlined, title: 'Log an outside visit', subtitle: 'Seen a doctor not on CareLoop?', onTap: _openLogExternalVisit),
+          if (_externalVisits!.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('OUTSIDE VISITS', style: TextStyle(fontSize: 10.5, color: careloopMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+            const SizedBox(height: 8),
+            for (final v in _externalVisits!.cast<Map<String, dynamic>>()) _ExternalVisitCard(visit: v, onDelete: () => _deleteExternalVisit(v['id'] as String)),
+          ],
         ],
       ),
     );
@@ -233,6 +279,41 @@ class _StatusChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 10.5)),
       ]),
+    );
+  }
+}
+
+class _ExternalVisitCard extends StatelessWidget {
+  final Map<String, dynamic> visit;
+  final VoidCallback onDelete;
+  const _ExternalVisitCard({required this.visit, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final hospital = visit['hospital_name'] as String?;
+    final diagnosis = visit['diagnosis'] as String?;
+    final date = DateTime.tryParse(visit['visit_date'] as String? ?? '');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(color: careloopSurface, borderRadius: BorderRadius.circular(careloopRadiusMd), border: careloopCardBorder, boxShadow: careloopCardShadow),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: 38, height: 38, decoration: BoxDecoration(color: careloopAccentLight, borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.add_location_alt_outlined, color: careloopAccent, size: 18)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(visit['doctor_name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+              Text(
+                [hospital, if (date != null) '${date.day}/${date.month}/${date.year}'].where((v) => v != null && v.isNotEmpty).join(' · '),
+                style: const TextStyle(color: careloopMuted, fontSize: 11),
+              ),
+              if (diagnosis != null && diagnosis.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(diagnosis, style: const TextStyle(color: careloopMuted, fontSize: 11, fontStyle: FontStyle.italic))),
+            ]),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded, size: 17, color: careloopMutedDim), onPressed: onDelete),
+        ]),
+      ),
     );
   }
 }
