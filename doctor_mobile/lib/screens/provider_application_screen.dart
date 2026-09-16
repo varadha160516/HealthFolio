@@ -51,6 +51,7 @@ class _ProviderApplicationScreenState extends State<ProviderApplicationScreen> {
   final Map<String, ApplicationFile?> _documents = {'registration_certificate': null, 'government_id': null, 'qualification_certificate': null};
   bool _loadingRefData = true;
   bool _submitting = false;
+  bool _autofilling = false;
   String? _error;
 
   bool get _isResubmit => widget.existingApplication != null;
@@ -107,21 +108,54 @@ class _ProviderApplicationScreenState extends State<ProviderApplicationScreen> {
       ),
     );
     if (choice == null || !mounted) return;
+    List<int> bytes;
+    String filename;
     try {
       if (choice == 'camera' || choice == 'gallery') {
         final picked = await ImagePicker().pickImage(source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery);
         if (picked == null) return;
-        final bytes = await picked.readAsBytes();
-        setState(() => _documents[docType] = ApplicationFile(documentType: docType, filename: picked.name, bytes: bytes));
+        bytes = await picked.readAsBytes();
+        filename = picked.name;
       } else {
         final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
         if (picked.isEmpty) return;
         final file = picked.first;
-        final bytes = await file.readAsBytes();
-        setState(() => _documents[docType] = ApplicationFile(documentType: docType, filename: file.name, bytes: bytes));
+        bytes = await file.readAsBytes();
+        filename = file.name;
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not attach file: $e')));
+      return;
+    }
+    setState(() => _documents[docType] = ApplicationFile(documentType: docType, filename: filename, bytes: bytes));
+    if (docType == 'registration_certificate' && !_isResubmit) await _autofillFromCertificate(bytes, filename);
+  }
+
+  // Reads whatever the certificate actually states (server never guesses) and fills only the
+  // fields the applicant hasn't already typed into — this never overwrites a manual edit.
+  Future<void> _autofillFromCertificate(List<int> bytes, String filename) async {
+    setState(() => _autofilling = true);
+    try {
+      final api = context.read<AuthProvider>().api;
+      final result = await api.autofillFromCertificate(bytes, filename);
+      if (!mounted) return;
+      final specialtyGuess = result['specialty_guess'] as String?;
+      setState(() {
+        if (_fullName.text.trim().isEmpty && result['full_name'] != null) _fullName.text = result['full_name'] as String;
+        if (_registrationNumber.text.trim().isEmpty && result['registration_number'] != null) _registrationNumber.text = result['registration_number'] as String;
+        if (_qualifications.text.trim().isEmpty && result['qualifications'] != null) _qualifications.text = result['qualifications'] as String;
+        if (_specialty == null && specialtyGuess != null && _specializations.contains(specialtyGuess)) _specialty = specialtyGuess;
+      });
+      final filledAny = result['full_name'] != null || result['registration_number'] != null || result['qualifications'] != null || specialtyGuess != null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(filledAny ? 'Prefilled from your certificate — please double-check the details below.' : 'Could not read details from this certificate — please fill them in manually.'),
+        ));
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not read this certificate automatically — please fill the form in manually.')));
+    } finally {
+      if (mounted) setState(() => _autofilling = false);
     }
   }
 
@@ -206,6 +240,13 @@ class _ProviderApplicationScreenState extends State<ProviderApplicationScreen> {
                   ),
                   const SizedBox(height: 14),
                 ],
+                if (!_isResubmit) ...[
+                  _sectionLabel('QUICK START'),
+                  const Text('Upload your medical registration certificate first and we\'ll prefill your details below — you can still edit anything.', style: TextStyle(fontSize: 11.5, color: docMuted)),
+                  const SizedBox(height: 10),
+                  _documentRow('registration_certificate', busy: _autofilling),
+                  const SizedBox(height: 18),
+                ],
                 _sectionLabel('YOUR DETAILS'),
                 TextField(controller: _fullName, decoration: const InputDecoration(labelText: 'Full name')),
                 const SizedBox(height: 10),
@@ -273,7 +314,7 @@ class _ProviderApplicationScreenState extends State<ProviderApplicationScreen> {
                 _sectionLabel('VERIFICATION DOCUMENTS'),
                 const Text('Reviewed by our team before your account is activated.', style: TextStyle(fontSize: 11.5, color: docMuted)),
                 const SizedBox(height: 10),
-                for (final docType in _kDocLabels.keys) _documentRow(docType),
+                for (final docType in _kDocLabels.keys.where((d) => _isResubmit || d != 'registration_certificate')) _documentRow(docType),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
@@ -322,13 +363,13 @@ class _ProviderApplicationScreenState extends State<ProviderApplicationScreen> {
     );
   }
 
-  Widget _documentRow(String docType) {
+  Widget _documentRow(String docType, {bool busy = false}) {
     final file = _documents[docType];
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
       child: InkWell(
         borderRadius: BorderRadius.circular(docRadiusMd),
-        onTap: () => _pickDocument(docType),
+        onTap: busy ? null : () => _pickDocument(docType),
         child: Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(color: docSurface, borderRadius: BorderRadius.circular(docRadiusMd), border: docCardBorder, boxShadow: docCardShadow),
@@ -336,17 +377,20 @@ class _ProviderApplicationScreenState extends State<ProviderApplicationScreen> {
             Container(
               width: 34,
               height: 34,
+              alignment: Alignment.center,
               decoration: BoxDecoration(color: file != null ? docSuccessBg : docAccentLight, borderRadius: BorderRadius.circular(11)),
-              child: Icon(file != null ? Icons.check_rounded : Icons.upload_file_rounded, size: 16, color: file != null ? docSuccess : docAccentDark),
+              child: busy
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: docAccentDark))
+                  : Icon(file != null ? Icons.check_rounded : Icons.upload_file_rounded, size: 16, color: file != null ? docSuccess : docAccentDark),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_kDocLabels[docType]!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                Text(file?.filename ?? 'Tap to attach', style: TextStyle(color: file != null ? docSuccess : docMuted, fontSize: 10.5)),
+                Text(busy ? 'Reading your certificate…' : (file?.filename ?? 'Tap to attach'), style: TextStyle(color: file != null ? docSuccess : docMuted, fontSize: 10.5)),
               ]),
             ),
-            if (file != null) IconButton(icon: const Icon(Icons.close_rounded, size: 17), onPressed: () => setState(() => _documents[docType] = null)),
+            if (file != null && !busy) IconButton(icon: const Icon(Icons.close_rounded, size: 17), onPressed: () => setState(() => _documents[docType] = null)),
           ]),
         ),
       ),

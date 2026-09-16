@@ -9,6 +9,7 @@ import {
   LabExtractionResult,
   PageInput,
   PrescriptionExtractionResult,
+  ProviderCredentialExtractionResult,
 } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,6 +59,17 @@ export const mockAdapter: ExtractAdapter = {
       { medicine_name: 'Atorvastatin', dosage: '10mg', frequency: 'OD (night)', duration: '30 days' },
     ];
     return { diagnosis_text: 'Routine follow-up', prescribed_date: new Date().toISOString().slice(0, 10), line_items: meds };
+  },
+
+  async extractProviderCredential(_pages: PageInput[]): Promise<ProviderCredentialExtractionResult> {
+    return {
+      full_name: 'Dr. Ananya Sharma',
+      registration_number: `MOCK-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      registration_council: 'Karnataka Medical Council',
+      qualifications: 'MBBS, MD (General Medicine)',
+      specialty_guess: 'General Physician',
+      extraction_confidence: 0.9,
+    };
   },
 };
 

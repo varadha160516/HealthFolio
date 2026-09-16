@@ -205,6 +205,15 @@ class ApiClient {
   Future<List<dynamic>> getPublicSpecializations() async => await _get('/public/specializations');
   Future<List<dynamic>> getPublicClinics() async => await _get('/public/clinics');
 
+  // Upload-first OCR autofill — read a picked registration certificate before the rest of the
+  // form is filled in, so the credentials section below can prefill itself.
+  Future<Map<String, dynamic>> autofillFromCertificate(List<int> bytes, String filename) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$apiBaseUrl/provider-applications/autofill'));
+    req.files.add(http.MultipartFile.fromBytes('document', bytes, filename: filename, contentType: _mediaTypeForFilename(filename)));
+    final resp = await http.Response.fromStream(await req.send());
+    return _handle(resp) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> submitProviderApplication(Map<String, dynamic> fields, List<ApplicationFile> files) async {
     final req = http.MultipartRequest('POST', Uri.parse('$apiBaseUrl/provider-applications'));
     _fillApplicationRequest(req, fields, files);

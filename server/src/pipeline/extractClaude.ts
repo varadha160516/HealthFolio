@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ExtractAdapter, LabExtractionResult, PageInput, PrescriptionExtractionResult } from './types.js';
+import { ExtractAdapter, LabExtractionResult, PageInput, PrescriptionExtractionResult, ProviderCredentialExtractionResult } from './types.js';
+import { SPECIALIZATIONS } from '../specializations.js';
 
 const model = process.env.CARELOOP_EXTRACTION_MODEL || 'claude-sonnet-5';
 
@@ -134,6 +135,29 @@ handwritten or printed prescription. Extract each medicine line item. Return STR
   "line_items": [ { "medicine_name": string, "dosage": string | null, "frequency": string | null, "duration": string | null } ]
 }`;
 
+const PROVIDER_CREDENTIAL_SYSTEM_PROMPT = `You are the extraction stage of a doctor-onboarding document reader. You are shown a
+photo/PDF of a medical registration certificate or qualification certificate (e.g. issued by a State Medical Council,
+the National Medical Commission, or a university). Read only what is actually printed on the document.
+
+Rules, non-negotiable:
+- Extract full_name, registration_number, and registration_council (the issuing body's name) exactly as printed.
+- qualifications should capture the degree(s) as printed (e.g. "MBBS", "MD (General Medicine)").
+- specialty_guess: choose exactly ONE value from this fixed list, and ONLY if the printed qualification clearly
+  implies it (e.g. "MD (Cardiology)" implies "Cardiologist"). A plain MBBS registration with no specialization
+  printed has no specialty to infer — return null. Never guess a specialty beyond what the document actually states.
+  Allowed values: ${JSON.stringify(SPECIALIZATIONS)}
+- If a field is not visibly printed on the document, return null for it. Never fabricate a value.
+
+Return STRICT JSON only, no prose before or after:
+{
+  "full_name": string | null,
+  "registration_number": string | null,
+  "registration_council": string | null,
+  "qualifications": string | null,
+  "specialty_guess": string | null,
+  "extraction_confidence": number
+}`;
+
 export const claudeAdapter: ExtractAdapter = {
   async extractLabReport(pages: PageInput[]): Promise<LabExtractionResult> {
     const resp = await getClient().messages.create({
@@ -160,5 +184,16 @@ export const claudeAdapter: ExtractAdapter = {
     });
     const text = resp.content.map((b) => ('text' in b ? b.text : '')).join('');
     return extractJson(text, resp.stop_reason, 'line_items') as PrescriptionExtractionResult;
+  },
+
+  async extractProviderCredential(pages: PageInput[]): Promise<ProviderCredentialExtractionResult> {
+    const resp = await getClient().messages.create({
+      model,
+      max_tokens: 1024,
+      system: PROVIDER_CREDENTIAL_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: [...toContentBlocks(pages), { type: 'text', text: 'Extract this document per the rules above.' }] as any }],
+    });
+    const text = resp.content.map((b) => ('text' in b ? b.text : '')).join('');
+    return extractJson(text, resp.stop_reason, 'none') as ProviderCredentialExtractionResult;
   },
 };

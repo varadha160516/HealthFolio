@@ -39,9 +39,23 @@ export interface ExtractOptions {
   mockFixture?: 'golden_report_a' | 'golden_report_b';
 }
 
+// Provider-onboarding upload-first autofill: reads a medical registration/qualification
+// certificate the same way the lab/prescription extractors read those documents — only what's
+// actually printed, never a guess. specialty_guess is constrained to the app's fixed
+// SPECIALIZATIONS list (or null) so it can only ever land on a value the form's dropdown accepts.
+export interface ProviderCredentialExtractionResult {
+  full_name: string | null;
+  registration_number: string | null;
+  registration_council: string | null;
+  qualifications: string | null;
+  specialty_guess: string | null;
+  extraction_confidence: number;
+}
+
 export interface ExtractAdapter {
   extractLabReport(pages: PageInput[], opts?: ExtractOptions): Promise<LabExtractionResult>;
   extractPrescription(pages: PageInput[], opts?: ExtractOptions): Promise<PrescriptionExtractionResult>;
+  extractProviderCredential(pages: PageInput[]): Promise<ProviderCredentialExtractionResult>;
 }
 
 export interface PageInput {

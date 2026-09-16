@@ -8,6 +8,8 @@ import { db, now } from '../db/db.js';
 import { hashPassword } from '../auth/hash.js';
 import { uploadsDir } from './documents.js';
 import { SPECIALIZATIONS } from '../specializations.js';
+import { getExtractAdapter } from '../pipeline/extract.js';
+import { resolveMimeType, SUPPORTED_MEDIA_TYPES } from '../pipeline/mime.js';
 
 export const providerApplicationsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 10 } });
@@ -43,6 +45,25 @@ providerApplicationsRouter.get('/public/specializations', (_req, res) => res.jso
 
 providerApplicationsRouter.get('/public/clinics', (_req, res) => {
   res.json(db.prepare('SELECT id, name, address, city FROM clinics ORDER BY name').all());
+});
+
+// Upload-first autofill: read a registration/qualification certificate before the applicant has
+// typed anything, and hand back whatever the document actually states (never a guess) so the form
+// can prefill itself. Deliberately doesn't persist anything — the same file gets attached for real
+// via document_types/documents on the actual POST /provider-applications below.
+providerApplicationsRouter.post('/provider-applications/autofill', upload.single('document'), async (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'document file is required' });
+  const mimeType = resolveMimeType(file.mimetype, file.originalname);
+  if (!SUPPORTED_MEDIA_TYPES.has(mimeType)) return res.status(400).json({ error: 'Unsupported file type — please attach a JPEG, PNG, or PDF' });
+
+  try {
+    const result = await getExtractAdapter().extractProviderCredential([{ buffer: file.buffer, mimeType }]);
+    res.json(result);
+  } catch (e) {
+    console.error('Provider credential autofill failed:', e);
+    res.status(502).json({ error: 'Could not read this document automatically — please fill the form in manually.' });
+  }
 });
 
 // --- Submission ---
