@@ -1,10 +1,10 @@
 {
   "_meta": {
     "name": "CareLoop Master Canonical Parameter Dictionary",
-    "version": "1.1.0",
-    "generated": "2026-08-18",
-    "changelog": "v1.1.0: cross-checked v1.0.0 ranges against web sources (Mayo Clinic, Cleveland Clinic, MedlinePlus, LabCorp/Quest-cited ranges, StatPearls, NCEP ATP III/AHA lipid guidance, Geeky Medics clinical reference tables, ACP reference-range tables) rather than training data alone; corrected HDL to open_lower_bound (higher is protective, not a fixed band), adjusted ALP and total bilirubin to better-corroborated ranges, and added 10 parameters (amylase, lipase, D-dimer, ANA, anti-TPO, LH, FSH, beta-hCG, BNP, ammonia) identified during research as common in comprehensive panels but missing from v1.0.0.",
-    "total_parameters": 129,
+    "version": "1.2.0",
+    "generated": "2026-09-16",
+    "changelog": "v1.1.0: cross-checked v1.0.0 ranges against web sources (Mayo Clinic, Cleveland Clinic, MedlinePlus, LabCorp/Quest-cited ranges, StatPearls, NCEP ATP III/AHA lipid guidance, Geeky Medics clinical reference tables, ACP reference-range tables) rather than training data alone; corrected HDL to open_lower_bound (higher is protective, not a fixed band), adjusted ALP and total bilirubin to better-corroborated ranges, and added 10 parameters (amylase, lipase, D-dimer, ANA, anti-TPO, LH, FSH, beta-hCG, BNP, ammonia) identified during research as common in comprehensive panels but missing from v1.0.0. v1.2.0: added apo_b, apo_a1 (Mayo Clinic Labs unisex adult reference intervals) and omega3_index (HS-Omega-3 Index research, Harris & von Schacky — >=8% desirable) to support the Health Index's ApoB/ApoA1 ratio and Omega-3 Index sub-scores, both specialized tests not previously tracked.",
+    "total_parameters": 132,
     "categories": [
       "Vitals",
       "CBC",
@@ -1129,6 +1129,69 @@
       "plausible_range_for_validation": [
         0,
         22.5
+      ]
+    },
+    {
+      "canonical_parameter_id": "apo_b",
+      "display_name": "Apolipoprotein B",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 40,
+        "high": 125
+      },
+      "aliases": [
+        "Apolipoprotein B",
+        "Apo B",
+        "ApoB"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        300
+      ]
+    },
+    {
+      "canonical_parameter_id": "apo_a1",
+      "display_name": "Apolipoprotein A1",
+      "category": "Lipid panel",
+      "canonical_unit": "mg/dL",
+      "range_type": "fixed_range",
+      "typical_reference_range": {
+        "low": 100,
+        "high": 200
+      },
+      "aliases": [
+        "Apolipoprotein A1",
+        "Apo A1",
+        "ApoA1",
+        "Apo A-1",
+        "Apolipoprotein A-I"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        400
+      ]
+    },
+    {
+      "canonical_parameter_id": "omega3_index",
+      "display_name": "Omega-3 Index",
+      "category": "Lipid panel",
+      "canonical_unit": "%",
+      "range_type": "open_lower_bound",
+      "typical_reference_range": {
+        "low": 8,
+        "high": null
+      },
+      "aliases": [
+        "Omega-3 Index",
+        "HS-Omega-3 Index",
+        "Omega 3 Index",
+        "EPA+DHA Index"
+      ],
+      "plausible_range_for_validation": [
+        0,
+        20
       ]
     },
     {

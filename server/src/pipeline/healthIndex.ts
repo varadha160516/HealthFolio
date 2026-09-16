@@ -6,12 +6,12 @@ import { db } from '../db/db.js';
 // so replicating it would mean guessing and calling it "the same logic," which this app doesn't
 // do (see medicationReconciliation.ts's comment for the same principle applied elsewhere).
 //
-// What IS reused here are four well-established, PUBLISHED clinical formulas — HOMA-IR, the
-// triglyceride/HDL ratio, Non-HDL cholesterol, and FIB-4 — standard medical literature, not any
-// one company's proprietary IP. Two more markers common in that product category (ApoB,
-// Omega-3 Index) are left out: they need specialized tests this app's parameter dictionary
-// doesn't track and most patients never take, so a sub-score presented for them would almost
-// always read as "no data" rather than add real value.
+// What IS reused here are six well-established, PUBLISHED clinical markers — HOMA-IR, the
+// triglyceride/HDL ratio, Non-HDL cholesterol, FIB-4, the ApoB/ApoA1 ratio, and the Omega-3
+// Index — standard medical literature, not any one company's proprietary IP. The last two need
+// specialized panels most patients never order (added to the dictionary in v1.2.0 specifically
+// for this), so they show a plain "what test is missing" message rather than a guessed value
+// until a member's actual lab results include them.
 //
 // This is general wellness information computed from real values already on file — never a
 // diagnosis, never a suggestion to act on. Published cutoffs vary slightly by source; the ones
@@ -71,6 +71,15 @@ function tierFromAscendingCutoffs(value: number, optimal: number, normal: number
   if (value < optimal) return 'optimal';
   if (value < normal) return 'normal';
   if (value < watch) return 'watch';
+  return 'abnormal';
+}
+
+/** Descending cutoffs, for markers where HIGHER is better: value >= optimal -> optimal, >= normal
+ * -> normal, >= watch -> watch, else abnormal. */
+function tierFromDescendingCutoffs(value: number, optimal: number, normal: number, watch: number): Tier {
+  if (value >= optimal) return 'optimal';
+  if (value >= normal) return 'normal';
+  if (value >= watch) return 'watch';
   return 'abnormal';
 }
 
@@ -162,10 +171,47 @@ export function computeHealthIndex(memberId: string, ageYears: number | null): H
     subScores.push(missingSubScore('fib4', 'Liver Fibrosis Risk (FIB-4)', ['sgot_ast', 'sgpt_alt', 'platelet_count'], 'Needs a liver function panel (AST, ALT) and a platelet count, plus the member\'s age.'));
   }
 
-  // ApoB and Omega-3 Index are deliberately not included: this app's parameter dictionary has no
-  // canonical entry for either (they need a specialized lipoprotein or fatty-acid panel that
-  // isn't part of routine lab work), so a sub-score here would read as permanently "no data" for
-  // nearly everyone rather than add anything real.
+  // 5. ApoB/ApoA1 ratio — a published cardiovascular risk ratio (used in e.g. the INTERHEART
+  // study), not a single company's invention. Needs a specialized lipoprotein panel most patients
+  // never order, so it's only shown once both values are actually on file.
+  const apoB = latestValue(memberId, 'apo_b');
+  const apoA1 = latestValue(memberId, 'apo_a1');
+  if (apoB && apoA1 && apoA1.value > 0) {
+    const ratio = round2(apoB.value / apoA1.value);
+    subScores.push({
+      id: 'apob_apoa1_ratio',
+      label: 'ApoB / ApoA1 Ratio',
+      value: ratio,
+      unit: '',
+      tier: tierFromAscendingCutoffs(ratio, 0.4, 0.6, 0.9),
+      testDate: laterOf(apoB.testDate, apoA1.testDate),
+      sourceParameters: ['apo_b', 'apo_a1'],
+      explanation: 'A cardiovascular risk ratio from a specialized lipoprotein panel — lower generally reflects a more favorable particle balance.',
+      missing: false,
+    });
+  } else {
+    subScores.push(missingSubScore('apob_apoa1_ratio', 'ApoB / ApoA1 Ratio', ['apo_b', 'apo_a1'], 'Needs a specialized lipoprotein panel with ApoB and ApoA1 — not part of a routine lipid panel.'));
+  }
+
+  // 6. Omega-3 Index — directly measured (% of EPA+DHA in red blood cell membranes), not derived
+  // from other values. Published reference zones from HS-Omega-3 Index research (Harris & von
+  // Schacky): higher is better, unlike every other sub-score here.
+  const omega3 = latestValue(memberId, 'omega3_index');
+  if (omega3) {
+    subScores.push({
+      id: 'omega3_index',
+      label: 'Omega-3 Index',
+      value: omega3.value,
+      unit: '%',
+      tier: tierFromDescendingCutoffs(omega3.value, 8, 6, 4),
+      testDate: omega3.testDate,
+      sourceParameters: ['omega3_index'],
+      explanation: 'The share of EPA and DHA in red blood cell membranes — a specialized fatty-acid panel result, not part of routine lab work. Higher is better here.',
+      missing: false,
+    });
+  } else {
+    subScores.push(missingSubScore('omega3_index', 'Omega-3 Index', ['omega3_index'], 'Needs a specialized Omega-3 Index fatty-acid panel — not part of a routine lipid panel.'));
+  }
 
   const available = subScores.filter((s) => !s.missing && s.tier != null);
   const compositeScore = available.length > 0 ? Math.round(available.reduce((sum, s) => sum + TIER_POINTS[s.tier!], 0) / available.length) : null;
@@ -178,7 +224,7 @@ export function computeHealthIndex(memberId: string, ageYears: number | null): H
     subScores,
     computedAt: new Date().toISOString(),
     methodologyNote:
-      'Computed from published clinical formulas (HOMA-IR, triglyceride/HDL ratio, Non-HDL cholesterol, FIB-4) using your most recent lab values for each. This is general wellness information, not a diagnosis — talk to your doctor about what any of these mean for you.',
+      'Computed from published clinical formulas (HOMA-IR, triglyceride/HDL ratio, Non-HDL cholesterol, FIB-4, ApoB/ApoA1 ratio, Omega-3 Index) using your most recent lab values for each. The last two need a specialized panel most routine lab work doesn\'t include. This is general wellness information, not a diagnosis — talk to your doctor about what any of these mean for you.',
   };
 }
 
