@@ -46,6 +46,7 @@ final _kDocumentsIndex = _kSections.indexWhere((s) => s.$1 == 'Documents');
 /// Exposed so other screens (the family dashboard's safety-flag summary card) can deep-link
 /// straight into this section instead of always opening on Profile.
 final int kSafetyCheckTabIndex = _kSections.indexWhere((s) => s.$1 == 'Safety Check');
+final int kHealthAnalysisTabIndex = _kSections.indexWhere((s) => s.$1 == 'Health Analysis');
 final int kReferralsTabIndex = _kSections.indexWhere((s) => s.$1 == 'Referrals');
 
 /// Left-panel navigation + right-panel detail (per the Liquid Glass brief), replacing the

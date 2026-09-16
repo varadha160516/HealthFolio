@@ -27,6 +27,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   List<dynamic>? _medReminders;
   List<dynamic>? _safetyFlags;
   List<dynamic>? _referrals;
+  List<dynamic>? _healthIndexSummary;
   bool _showAdd = false;
   final _name = TextEditingController();
   final _dob = TextEditingController();
@@ -60,6 +61,19 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     _loadMedReminders();
     _loadSafetyFlags();
     _loadReferrals();
+    _loadHealthIndexSummary();
+  }
+
+  /// Every family member's composite Health Index in one call — see health_analysis_tab.dart /
+  /// pipeline/healthIndex.ts for the methodology. Fails silently, same reasoning as the other cards.
+  Future<void> _loadHealthIndexSummary() async {
+    try {
+      final api = context.read<AuthProvider>().api;
+      final r = await api.getFamilyHealthIndexSummary();
+      if (mounted) setState(() => _healthIndexSummary = r);
+    } catch (_) {
+      // silent — see doc comment above
+    }
   }
 
   /// Pending specialist referrals across the family — surfaced here so a referral doesn't sit
@@ -344,6 +358,39 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 ),
               ),
             ),
+          // Composite Health Index per member — see health_analysis_tab.dart / pipeline/healthIndex.ts.
+          if (_healthIndexSummary?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: GlassPane(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.monitor_heart_outlined, size: 16, color: careloopAccent),
+                      const SizedBox(width: 8),
+                      Text('Health Index', style: careloopSectionHeading()),
+                    ]),
+                    const SizedBox(height: 10),
+                    Column(
+                      children: [
+                        for (final (i, h) in _healthIndexSummary!.cast<Map<String, dynamic>>().indexed) ...[
+                          if (i > 0) const SizedBox(height: 10),
+                          _HealthIndexSummaryTile(
+                            summary: h,
+                            onTap: () async {
+                              final member = _members!.cast<Map<String, dynamic>>().firstWhere((m) => m['id'] == h['member_id'], orElse: () => {'id': h['member_id'], 'name': h['member_name']});
+                              await Navigator.push(context, pushRoute(MemberProfileScreen(member: member, initialIndex: kHealthAnalysisTabIndex)));
+                              if (mounted) _loadHealthIndexSummary();
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_showAdd)
             SectionCard(
               title: 'Add a dependent',
@@ -502,6 +549,44 @@ class _ReferralSummaryTile extends StatelessWidget {
             ),
           ),
           Icon(Icons.chevron_right_rounded, size: 18, color: isUrgent ? careloopDanger : careloopAccentDark),
+        ]),
+      ),
+    );
+  }
+}
+
+/// One family member's composite Health Index from GET /family/health-index-summary.
+class _HealthIndexSummaryTile extends StatelessWidget {
+  final Map<String, dynamic> summary;
+  final VoidCallback onTap;
+  const _HealthIndexSummaryTile({required this.summary, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final score = summary['compositeScore'] as int;
+    final tier = summary['compositeTier'] as String?;
+    final (fg, bg, label) = switch (tier) {
+      'optimal' => (careloopGreen, careloopGreenBg, 'Optimal'),
+      'normal' => (careloopInfo, careloopNewBg, 'Normal'),
+      'watch' => (careloopWarning, careloopWarningBg, 'Watch'),
+      _ => (careloopDanger, careloopAbnormalBg, 'Abnormal'),
+    };
+    return InkWell(
+      borderRadius: BorderRadius.circular(careloopRadiusSm),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(careloopRadiusSm)),
+        child: Row(children: [
+          Icon(Icons.monitor_heart_outlined, size: 17, color: fg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('${summary['member_name']} — $label', style: TextStyle(color: fg, fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          Text('$score', style: TextStyle(color: fg, fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 6),
+          Icon(Icons.chevron_right_rounded, size: 18, color: fg),
         ]),
       ),
     );

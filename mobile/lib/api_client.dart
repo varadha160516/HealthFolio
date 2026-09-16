@@ -208,6 +208,7 @@ class ApiClient {
   Future<List<dynamic>> getHealthTimeline(String memberId) async =>
       (await _get('/parameters/health-timeline?member_id=$memberId') as Map<String, dynamic>)['timeline'] as List<dynamic>;
   Future<Map<String, dynamic>> getHealthIndex(String memberId) async => await _get('/parameters/health-index?member_id=$memberId');
+  Future<List<dynamic>> getFamilyHealthIndexSummary() async => await _get('/family/health-index-summary');
   Future<List<dynamic>> getHealthAnalysisCategories() async => await _get('/parameters/health-analysis/categories');
   Future<Map<String, dynamic>> getHealthAnalysis(String memberId, String category) async =>
       await _get('/parameters/health-analysis?member_id=$memberId&category=${Uri.encodeComponent(category)}');

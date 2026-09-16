@@ -7,14 +7,35 @@ import { computeHealthIndex } from '../pipeline/healthIndex.js';
 
 export const parametersRouter = Router();
 
+function ageYearsFromDob(dob: string | null): number | null {
+  return dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+}
+
 // Composite "Health Index" — see pipeline/healthIndex.ts for the methodology note on why this is
 // CareLoop's own composite calculation, not a copy of any third-party product's proprietary logic.
 parametersRouter.get('/parameters/health-index', requireAuth, (req, res) => {
   const memberId = req.query.member_id as string;
   if (!memberId || !assertFamilyAccess(req, res, memberId)) return;
   const member = db.prepare('SELECT dob FROM members WHERE id = ?').get(memberId) as { dob: string | null } | undefined;
-  const ageYears = member?.dob ? Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
-  res.json(computeHealthIndex(memberId, ageYears));
+  res.json(computeHealthIndex(memberId, ageYearsFromDob(member?.dob ?? null)));
+});
+
+// Home Screen's summary card — every family member's Health Index in one call, so a member sees
+// the whole family's standing without opening each profile individually. Members with no
+// computable sub-score yet are left out entirely (nothing useful to show for them).
+parametersRouter.get('/family/health-index-summary', requireAuth, (req, res) => {
+  const members = db.prepare('SELECT id, name, dob FROM members WHERE family_id = ? AND archived_at IS NULL').all(req.session!.familyId) as {
+    id: string;
+    name: string;
+    dob: string | null;
+  }[];
+  const results = members
+    .map((m) => {
+      const index = computeHealthIndex(m.id, ageYearsFromDob(m.dob));
+      return { member_id: m.id, member_name: m.name, compositeScore: index.compositeScore, compositeTier: index.compositeTier };
+    })
+    .filter((r) => r.compositeScore != null);
+  res.json(results);
 });
 
 // Health insights agent (PRD Section 13.1) — a cached, display-only plain-language summary of
