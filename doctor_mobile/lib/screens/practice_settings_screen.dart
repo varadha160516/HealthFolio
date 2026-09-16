@@ -1,4 +1,6 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
@@ -26,6 +28,7 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
   final _qualificationsController = TextEditingController();
   final _experienceController = TextEditingController();
   bool _savingCredentials = false;
+  bool _autofillingCredentials = false;
   final _gstController = TextEditingController();
   bool _savingGst = false;
   bool _savingSignature = false;
@@ -132,6 +135,69 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
     }
   }
 
+  // Same upload-first OCR reader as the provider-application form (see server/src/pipeline/
+  // extractClaude.ts's extractProviderCredential and provider_application_screen.dart) — reused
+  // as-is here since it's a stateless, unauthenticated read of whatever's printed on the document,
+  // with no dependency on who's calling it. Only fills fields left blank; never overwrites a
+  // manual edit, and doesn't touch years_of_experience since the extractor never returns it.
+  Future<void> _scanCertificate() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.photo_camera_rounded), title: const Text('Take photo'), onTap: () => Navigator.of(context).pop('camera')),
+          ListTile(leading: const Icon(Icons.image_rounded), title: const Text('Choose from gallery'), onTap: () => Navigator.of(context).pop('gallery')),
+          ListTile(leading: const Icon(Icons.picture_as_pdf_rounded), title: const Text('Choose PDF'), onTap: () => Navigator.of(context).pop('pdf')),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    List<int> bytes;
+    String filename;
+    try {
+      if (choice == 'camera' || choice == 'gallery') {
+        final picked = await ImagePicker().pickImage(source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery);
+        if (picked == null) return;
+        bytes = await picked.readAsBytes();
+        filename = picked.name;
+      } else {
+        final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+        if (picked.isEmpty) return;
+        final file = picked.first;
+        bytes = await file.readAsBytes();
+        filename = file.name;
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not attach file: $e')));
+      return;
+    }
+    if (!mounted) return;
+    await _autofillCredentialsFromCertificate(bytes, filename);
+  }
+
+  Future<void> _autofillCredentialsFromCertificate(List<int> bytes, String filename) async {
+    setState(() => _autofillingCredentials = true);
+    try {
+      final result = await context.read<AuthProvider>().api.autofillFromCertificate(bytes, filename);
+      if (!mounted) return;
+      setState(() {
+        if (_registrationController.text.trim().isEmpty && result['registration_number'] != null) _registrationController.text = result['registration_number'] as String;
+        if (_qualificationsController.text.trim().isEmpty && result['qualifications'] != null) _qualificationsController.text = result['qualifications'] as String;
+      });
+      final filledAny = result['registration_number'] != null || result['qualifications'] != null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(filledAny ? 'Prefilled from your certificate — review, then Save credentials.' : 'Could not read details from this certificate — please fill them in manually.'),
+        ));
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not read this certificate automatically — please fill the fields in manually.')));
+    } finally {
+      if (mounted) setState(() => _autofillingCredentials = false);
+    }
+  }
+
   Future<void> _addAvailability() async {
     int day = DateTime.now().weekday % 7;
     TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
@@ -225,6 +291,14 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Self-declared for your own records — shown on your profile, not verified against any registry.', style: TextStyle(fontSize: 12, color: docMuted)),
               const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _autofillingCredentials ? null : _scanCertificate,
+                icon: _autofillingCredentials
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.document_scanner_outlined, size: 16),
+                label: Text(_autofillingCredentials ? 'Reading your certificate…' : 'Scan certificate to autofill'),
+              ),
+              const SizedBox(height: 12),
               TextField(controller: _registrationController, decoration: const InputDecoration(labelText: 'Medical registration number')),
               const SizedBox(height: 10),
               TextField(controller: _qualificationsController, decoration: const InputDecoration(labelText: 'Qualifications', hintText: 'e.g. MBBS, MD (General Medicine)')),
