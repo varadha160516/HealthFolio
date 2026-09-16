@@ -627,11 +627,44 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     );
   }
 
+  // Cross-provider safety net, read-only on this side (see server/src/pipeline/safetyNet.ts) —
+  // structured-fact checks (duplicate active meds from a different prescriber, an allergy-name
+  // match, a repeated lab test) run across this patient's ENTIRE record, not just this visit.
+  // No dismiss/discuss action here: resolving a flag stays the member/family's call.
+  Widget _safetyCheckBanner(List<Map<String, dynamic>> flags) {
+    final hasWarning = flags.any((f) => f['severity'] == 'warning');
+    final bg = hasWarning ? docWarningBg : docInfoBg;
+    final fg = hasWarning ? docWarning : docInfo;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(docRadiusMd)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.shield_outlined, size: 15, color: fg),
+          const SizedBox(width: 6),
+          Text('SAFETY CHECK · ${flags.length}', style: TextStyle(fontSize: 10, color: fg, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+        ]),
+        const SizedBox(height: 8),
+        for (final f in flags) ...[
+          Text(f['title'] as String? ?? '', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: fg)),
+          const SizedBox(height: 2),
+          Text(f['detail'] as String? ?? '', style: TextStyle(fontSize: 11.5, height: 1.4, color: fg.withValues(alpha: 0.9))),
+          if (f != flags.last) const SizedBox(height: 8),
+        ],
+        const SizedBox(height: 8),
+        Text('From this patient\'s full record across every provider — not just this visit.', style: TextStyle(fontSize: 10, color: fg.withValues(alpha: 0.75), fontStyle: FontStyle.italic)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const DocGradientScaffold(body: LoadingCenter());
     final member = _appt!['member'] as Map<String, dynamic>?;
     final allergies = ((_appt!['unlockedData']?['summary']?['allergies'] as List?) ?? []).map((a) => a['value']).join(', ');
+    final safetyFlags = ((_appt!['unlockedData']?['safetyFlags'] as List?) ?? []).cast<Map<String, dynamic>>();
     final dob = member?['dob'] as String?;
     final age = dob != null ? (DateTime.now().difference(DateTime.tryParse(dob) ?? DateTime.now()).inDays / 365.25).floor() : null;
 
@@ -672,6 +705,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     ]),
                   ),
                 ],
+                if (safetyFlags.isNotEmpty) _safetyCheckBanner(safetyFlags),
                 _section('Vitals', Icons.monitor_heart_rounded, [
               if (_vitals.isNotEmpty) _latestVitalsRow(_vitals.first as Map<String, dynamic>),
               if (_vitals.isNotEmpty) const SizedBox(height: 10),

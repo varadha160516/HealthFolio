@@ -10,6 +10,7 @@ import { AppointmentStatus, canTransition, CONSENT_WINDOW_MINUTES, grantsDataAcc
 import { logAudit, getAuditLog } from '../audit.js';
 import { computeSummaryCard } from '../summary.js';
 import { SPECIALIZATIONS } from '../specializations.js';
+import { runSafetyCheck } from '../pipeline/safetyNet.js';
 import { getConsentExplanation } from '../pipeline/consentExplainer.js';
 import { getPrevisitBrief } from '../pipeline/previsitPrep.js';
 import { checkPrescriptionDraft } from '../pipeline/medicationReconciliation.js';
@@ -154,6 +155,13 @@ function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean
       // same pending_review inclusion — a doctor seeing a DIFFERENT "flagged" set than what the
       // member's own app shows would be exactly the kind of drift Section 8.2 rules out).
       flaggedHistory: summary.parameters.abnormal,
+      // Cross-provider safety net (safetyNet.ts), read-only here: the checks only look at active
+      // medications/allergies/lab bookings, which a doctor already sees elsewhere on this same
+      // unlocked screen (allergy banner, current meds) during this consent window — this just
+      // surfaces the same structured-fact insight the member's own app shows, rather than new
+      // data. Only 'open' flags — dismiss/discussed stays a member/family decision, never a
+      // doctor's, so no resolution endpoint is exposed on this side.
+      safetyFlags: runSafetyCheck(appt.member_id).open,
     };
   }
   return base;
