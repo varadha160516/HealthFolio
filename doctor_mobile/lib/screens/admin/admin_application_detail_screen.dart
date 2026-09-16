@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../auth_provider.dart';
 import '../../theme.dart';
 
@@ -38,14 +39,37 @@ class _AdminApplicationDetailScreenState extends State<AdminApplicationDetailScr
   }
 
   Future<void> _approve() async {
+    final duplicates = (_detail!['duplicates'] as Map<String, dynamic>?) ?? {};
+    final providerDupes = ((duplicates['providers'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final appDupes = ((duplicates['applications'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final hasDuplicates = providerDupes.isNotEmpty || appDupes.isNotEmpty;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Approve this application?'),
-        content: const Text('This creates a live login for the applicant immediately.'),
+        title: Text(hasDuplicates ? 'Registration number already in use' : 'Approve this application?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: hasDuplicates
+              ? [
+                  const Text(
+                    'This registration number already belongs to another provider or application. Approving anyway still creates a live login for this applicant immediately.',
+                    style: TextStyle(color: docDanger, fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 10),
+                  for (final p in providerDupes) Text('• Approved provider: ${p['name']}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  for (final a in appDupes) Text('• ${a['status']} application: ${a['full_name']}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                ]
+              : [const Text('This creates a live login for the applicant immediately.')],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Approve')),
+          ElevatedButton(
+            style: hasDuplicates ? ElevatedButton.styleFrom(backgroundColor: docDanger) : null,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(hasDuplicates ? 'Approve anyway' : 'Approve'),
+          ),
         ],
       ),
     );
@@ -53,13 +77,18 @@ class _AdminApplicationDetailScreenState extends State<AdminApplicationDetailScr
     setState(() => _busy = true);
     try {
       final api = context.read<AuthProvider>().api;
-      await api.approveProviderApplication(widget.applicationId);
+      await api.approveProviderApplication(widget.applicationId, overrideDuplicate: hasDuplicates);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _verifyOnNmc() async {
+    final uri = Uri.parse('https://www.nmc.org.in/information-desk/indian-medical-register/');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _reject() async {
@@ -100,6 +129,11 @@ class _AdminApplicationDetailScreenState extends State<AdminApplicationDetailScr
     final documents = (_detail!['documents'] as List).cast<Map<String, dynamic>>();
     final status = app['status'] as String;
     final submitted = DateTime.tryParse(app['created_at'] as String? ?? '')?.toLocal();
+    final ocrExtraction = _detail!['ocrExtraction'] as Map<String, dynamic>?;
+    final duplicates = (_detail!['duplicates'] as Map<String, dynamic>?) ?? {};
+    final providerDupes = ((duplicates['providers'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final appDupes = ((duplicates['applications'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final hasDuplicates = providerDupes.isNotEmpty || appDupes.isNotEmpty;
 
     return DocGradientScaffold(
       appBar: AppBar(title: const Text('Application')),
@@ -113,6 +147,24 @@ class _AdminApplicationDetailScreenState extends State<AdminApplicationDetailScr
             ]),
             if (submitted != null) Text('Applied ${DateFormat('MMM d, yyyy · h:mm a').format(submitted)}', style: const TextStyle(color: docMuted, fontSize: 11.5)),
             const SizedBox(height: 16),
+            if (hasDuplicates) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(color: docDangerBg, borderRadius: BorderRadius.circular(docRadiusMd)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const Icon(Icons.warning_amber_rounded, size: 15, color: docDanger),
+                    const SizedBox(width: 6),
+                    const Text('REGISTRATION NUMBER ALREADY IN USE', style: TextStyle(fontSize: 10, color: docDanger, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                  ]),
+                  const SizedBox(height: 8),
+                  for (final p in providerDupes) Text('• Approved provider: ${p['name']}', style: const TextStyle(fontSize: 12.5, color: docDanger, fontWeight: FontWeight.w600)),
+                  for (final a in appDupes) Text('• ${a['status']} application: ${a['full_name']}', style: const TextStyle(fontSize: 12.5, color: docDanger, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ],
             _section('Contact', [
               _row('Email', app['email']),
               _row('Phone', app['phone']),
@@ -126,8 +178,28 @@ class _AdminApplicationDetailScreenState extends State<AdminApplicationDetailScr
                 _row('Years of experience', app['years_of_experience']?.toString()),
                 _row('Consultation fee', app['default_fee'] != null ? '₹${app['default_fee']}' : null),
                 _row('GST number', app['gst_number']),
+                if ((app['registration_number'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: _verifyOnNmc,
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                    label: const Text('Look up on NMC\'s public register', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ],
             ]),
+            if (app['role_requested'] == 'doctor')
+              _section('What the certificate says', [
+                if (ocrExtraction == null)
+                  const Text('No registration certificate was read automatically — either none was attached, or it could not be read.', style: TextStyle(fontSize: 12, color: docMuted))
+                else ...[
+                  _ocrCompareRow('Full name', app['full_name'] as String?, ocrExtraction['full_name'] as String?),
+                  _ocrCompareRow('Registration number', app['registration_number'] as String?, ocrExtraction['registration_number'] as String?),
+                  _ocrCompareRow('Qualifications', app['qualifications'] as String?, ocrExtraction['qualifications'] as String?),
+                  if ((ocrExtraction['registration_council'] as String?)?.isNotEmpty == true) _row('Issuing council (from certificate)', ocrExtraction['registration_council']),
+                ],
+              ]),
             _section('Clinic', [
               if (app['clinic_mode'] == 'existing') ...[
                 _row('Clinic', clinic?['name']),
@@ -207,6 +279,38 @@ class _AdminApplicationDetailScreenState extends State<AdminApplicationDetailScr
       ]),
     );
   }
+
+  // Compares what the applicant typed against what the extraction pipeline read off the actually-
+  // attached certificate — a plain-text nudge for the admin, not an automated pass/fail. A mismatch
+  // is shown, never hidden or auto-resolved either way.
+  Widget _ocrCompareRow(String label, String? typed, String? fromCertificate) {
+    final hasTyped = typed != null && typed.isNotEmpty;
+    final hasCert = fromCertificate != null && fromCertificate.isNotEmpty;
+    if (!hasTyped && !hasCert) return const SizedBox.shrink();
+    final matches = hasTyped && hasCert && _normalize(typed) == _normalize(fromCertificate);
+    final mismatch = hasTyped && hasCert && !matches;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 130, child: Text(label, style: const TextStyle(color: docMuted, fontSize: 12, fontWeight: FontWeight.w600))),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Typed: ${hasTyped ? typed : '—'}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: mismatch ? docDanger : docTextPrimary)),
+            if (hasCert)
+              Text(
+                matches ? 'Certificate matches ✓' : 'Certificate says: $fromCertificate',
+                style: TextStyle(fontSize: 11.5, color: matches ? docSuccess : docDanger, fontWeight: mismatch ? FontWeight.w600 : FontWeight.w400),
+              )
+            else
+              const Text('Not readable from the attached certificate', style: TextStyle(fontSize: 11, color: docMutedDim, fontStyle: FontStyle.italic)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  String? _normalize(String? s) => s?.trim().toLowerCase();
 
   Widget _documentTile(Map<String, dynamic> doc) {
     return Padding(

@@ -242,7 +242,12 @@ class ApiClient {
       await _get('/provider-applications/status?email=${Uri.encodeQueryComponent(email)}&reference_code=${Uri.encodeQueryComponent(referenceCode)}');
 
   // --- Admin: provider onboarding review queue ---
-  Future<List<dynamic>> getProviderApplications({String? status}) async => await _get('/admin/provider-applications${status != null ? '?status=$status' : ''}');
+  Future<List<dynamic>> getProviderApplications({String? status, String? search, String sort = 'newest'}) async {
+    final params = <String, String>{if (status != null) 'status': status, if (search != null && search.isNotEmpty) 'search': search, 'sort': sort};
+    final query = params.isEmpty ? '' : '?${params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
+    return await _get('/admin/provider-applications$query');
+  }
+
   Future<Map<String, dynamic>> getProviderApplicationDetail(String id) async => await _get('/admin/provider-applications/$id');
   Future<Uint8List> getApplicationDocumentBytes(String applicationId, String documentId) async {
     final resp = await http.get(Uri.parse('$apiBaseUrl/admin/provider-applications/$applicationId/documents/$documentId/file'), headers: _headers);
@@ -250,7 +255,8 @@ class ApiClient {
     return resp.bodyBytes;
   }
 
-  Future<Map<String, dynamic>> approveProviderApplication(String id) async => await _post('/admin/provider-applications/$id/approve');
+  Future<Map<String, dynamic>> approveProviderApplication(String id, {bool overrideDuplicate = false}) async =>
+      await _post('/admin/provider-applications/$id/approve', overrideDuplicate ? {'override_duplicate': true} : null);
   Future<void> rejectProviderApplication(String id, String reason) => _post('/admin/provider-applications/$id/reject', {'reason': reason});
 }
 

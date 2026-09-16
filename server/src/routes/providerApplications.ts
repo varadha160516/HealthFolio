@@ -39,6 +39,24 @@ function saveApplicationFiles(applicationId: string, files: Express.Multer.File[
   });
 }
 
+// Re-reads whatever registration certificate was actually attached (never trusts a client-
+// supplied extraction result) so an admin reviewing this application can compare "what they
+// typed" against "what the document says". Best-effort: extraction failure never blocks
+// submission, it just leaves ocr_extraction_json null for this application.
+async function extractAndStoreCertificate(applicationId: string, files: Express.Multer.File[], documentTypes: string[]) {
+  const certIndex = documentTypes.findIndex((t) => t === 'registration_certificate');
+  if (certIndex === -1 || !files[certIndex]) return;
+  const file = files[certIndex];
+  const mimeType = resolveMimeType(file.mimetype, file.originalname);
+  if (!SUPPORTED_MEDIA_TYPES.has(mimeType)) return;
+  try {
+    const result = await getExtractAdapter().extractProviderCredential([{ buffer: file.buffer, mimeType }]);
+    db.prepare('UPDATE provider_applications SET ocr_extraction_json = ? WHERE id = ?').run(JSON.stringify(result), applicationId);
+  } catch (e) {
+    console.error(`Registration-certificate re-extraction failed for application ${applicationId}:`, e);
+  }
+}
+
 // --- Public, unauthenticated reference data — the application form exists before anyone has a session. ---
 
 providerApplicationsRouter.get('/public/specializations', (_req, res) => res.json(SPECIALIZATIONS));
@@ -68,7 +86,7 @@ providerApplicationsRouter.post('/provider-applications/autofill', upload.single
 
 // --- Submission ---
 
-providerApplicationsRouter.post('/provider-applications', upload.array('documents', 10), (req, res) => {
+providerApplicationsRouter.post('/provider-applications', upload.array('documents', 10), async (req, res) => {
   const b = req.body ?? {};
   const { email, password, full_name, phone, role_requested, specialty, registration_number, qualifications, years_of_experience, gst_number, default_fee, clinic_mode, clinic_id, new_clinic_name, new_clinic_address, new_clinic_city } = b;
 
@@ -123,7 +141,10 @@ providerApplicationsRouter.post('/provider-applications', upload.array('document
   } catch {
     // malformed -- every file just falls back to 'other' inside saveApplicationFiles
   }
-  if (files.length > 0) saveApplicationFiles(id, files, documentTypes);
+  if (files.length > 0) {
+    saveApplicationFiles(id, files, documentTypes);
+    await extractAndStoreCertificate(id, files, documentTypes);
+  }
 
   res.status(201).json({ applicationId: id, referenceCode });
 });
@@ -147,7 +168,7 @@ providerApplicationsRouter.get('/provider-applications/status', (req, res) => {
 // Resubmission after rejection reuses the same application row (same reference code) rather than
 // creating a new one — one continuous record for an admin to see the history of, and the applicant
 // doesn't have to memorize a second code.
-providerApplicationsRouter.post('/provider-applications/:id/resubmit', upload.array('documents', 10), (req, res) => {
+providerApplicationsRouter.post('/provider-applications/:id/resubmit', upload.array('documents', 10), async (req, res) => {
   const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
   if (!app) return res.status(404).json({ error: 'Not found' });
   const { email, reference_code } = req.body ?? {};
@@ -174,7 +195,10 @@ providerApplicationsRouter.post('/provider-applications/:id/resubmit', upload.ar
   } catch {
     // see submission handler
   }
-  if (files.length > 0) saveApplicationFiles(app.id, files, documentTypes);
+  if (files.length > 0) {
+    saveApplicationFiles(app.id, files, documentTypes);
+    await extractAndStoreCertificate(app.id, files, documentTypes);
+  }
 
   res.json({ ok: true });
 });

@@ -198,20 +198,78 @@ const APPLICATION_DOC_MIME: Record<string, string> = {
 const APPLICATION_LIST_COLUMNS =
   'id, reference_code, email, full_name, phone, role_requested, specialty, registration_number, qualifications, years_of_experience, gst_number, default_fee, clinic_mode, clinic_id, new_clinic_name, new_clinic_address, new_clinic_city, status, rejection_reason, reviewed_by_user_id, reviewed_at, created_provider_id, created_at, updated_at';
 
+// A registration number is the one field this whole review exists to check — treat "12345" and
+// " 12345 " as the same, but nothing fancier, since we have no idea what real formatting variance
+// looks like across 29+ state councils and don't want to guess past exact-match-ignoring-case.
+function normalizeRegistrationNumber(value: string | null | undefined): string | null {
+  const trimmed = value?.trim().toUpperCase();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+/** Cross-checks a registration number against every OTHER approved provider and every other
+ * application (any status) that isn't this one — the only dedup the submit flow itself does is on
+ * email, so this is the sole place a duplicate/reused registration number is ever surfaced. */
+function findDuplicateRegistration(registrationNumber: string | null | undefined, excludeApplicationId: string) {
+  const normalized = normalizeRegistrationNumber(registrationNumber);
+  if (!normalized) return { providers: [] as any[], applications: [] as any[] };
+
+  const providers = (db.prepare(`SELECT id, name, registration_number FROM providers WHERE registration_number IS NOT NULL`).all() as any[]).filter(
+    (p) => normalizeRegistrationNumber(p.registration_number) === normalized
+  );
+  const applications = (
+    db
+      .prepare(`SELECT id, full_name, status, registration_number FROM provider_applications WHERE registration_number IS NOT NULL AND id != ?`)
+      .all(excludeApplicationId) as any[]
+  ).filter((a) => normalizeRegistrationNumber(a.registration_number) === normalized);
+
+  return { providers, applications };
+}
+
 adminRouter.get('/admin/provider-applications', (req, res) => {
   const status = req.query.status as string | undefined;
-  const rows = status
-    ? db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS} FROM provider_applications WHERE status = ? ORDER BY created_at DESC`).all(status)
-    : db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS} FROM provider_applications ORDER BY created_at DESC`).all();
+  const search = (req.query.search as string | undefined)?.trim();
+  const sort = req.query.sort === 'oldest' ? 'ASC' : 'DESC';
+
+  const where: string[] = [];
+  const params: any[] = [];
+  if (status) {
+    where.push('status = ?');
+    params.push(status);
+  }
+  if (search) {
+    where.push('(full_name LIKE ? OR email LIKE ? OR registration_number LIKE ?)');
+    const like = `%${search}%`;
+    params.push(like, like, like);
+  }
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+  const rows = db
+    .prepare(
+      `SELECT ${APPLICATION_LIST_COLUMNS}, (SELECT COUNT(*) FROM provider_application_documents d WHERE d.application_id = provider_applications.id) AS document_count
+       FROM provider_applications ${whereClause} ORDER BY created_at ${sort}`
+    )
+    .all(...params);
   res.json(rows);
 });
 
 adminRouter.get('/admin/provider-applications/:id', (req, res) => {
-  const app = db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS} FROM provider_applications WHERE id = ?`).get(req.params.id) as any;
+  const app = db.prepare(`SELECT ${APPLICATION_LIST_COLUMNS}, ocr_extraction_json FROM provider_applications WHERE id = ?`).get(req.params.id) as any;
   if (!app) return res.status(404).json({ error: 'Not found' });
   const clinic = app.clinic_id ? db.prepare('SELECT * FROM clinics WHERE id = ?').get(app.clinic_id) : null;
   const documents = db.prepare('SELECT id, document_type, filename, created_at FROM provider_application_documents WHERE application_id = ? ORDER BY created_at').all(app.id);
-  res.json({ application: app, clinic, documents });
+
+  let ocrExtraction = null;
+  if (app.ocr_extraction_json) {
+    try {
+      ocrExtraction = JSON.parse(app.ocr_extraction_json);
+    } catch {
+      // leave null — a malformed stored value shouldn't break the whole detail view
+    }
+  }
+  delete app.ocr_extraction_json;
+
+  const duplicates = findDuplicateRegistration(app.registration_number, app.id);
+  res.json({ application: app, clinic, documents, ocrExtraction, duplicates });
 });
 
 adminRouter.get('/admin/provider-applications/:id/documents/:docId/file', (req, res) => {
@@ -225,12 +283,29 @@ adminRouter.get('/admin/provider-applications/:id/documents/:docId/file', (req, 
   fs.createReadStream(filePath).pipe(res);
 });
 
-adminRouter.post('/admin/provider-applications/:id/approve', (req, res) => {
+class ApproveConflict extends Error {
+  constructor(public payload: any) {
+    super('approve_conflict');
+  }
+}
+
+// Everything from the pending-status check through the final status flip runs inside one
+// transaction — a plain read-then-write here would let a double-tap or two admins acting within
+// milliseconds of each other create two provider/user rows for the same application before the
+// status change lands. Throwing ApproveConflict rolls the whole thing back cleanly.
+const runApproval = db.transaction((req: any) => {
   const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
-  if (!app) return res.status(404).json({ error: 'Not found' });
-  if (app.status !== 'pending') return res.status(409).json({ error: `Application is already ${app.status}` });
+  if (!app) throw new ApproveConflict({ status: 404, body: { error: 'Not found' } });
+  if (app.status !== 'pending') throw new ApproveConflict({ status: 409, body: { error: `Application is already ${app.status}` } });
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(app.email)) {
-    return res.status(409).json({ error: 'An account with this email was created since the application was submitted' });
+    throw new ApproveConflict({ status: 409, body: { error: 'An account with this email was created since the application was submitted' } });
+  }
+
+  if (req.body?.override_duplicate !== true) {
+    const duplicates = findDuplicateRegistration(app.registration_number, app.id);
+    if (duplicates.providers.length > 0 || duplicates.applications.length > 0) {
+      throw new ApproveConflict({ status: 409, body: { error: 'duplicate_registration_number', duplicates } });
+    }
   }
 
   const timestamp = now();
@@ -261,7 +336,24 @@ adminRouter.post('/admin/provider-applications/:id/approve', (req, res) => {
     `UPDATE provider_applications SET status = 'approved', created_provider_id = ?, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ? WHERE id = ?`
   ).run(providerId, req.session!.userId, timestamp, timestamp, app.id);
 
-  logAudit(req.session!.userId, req.session!.role, 'provider_application_approved', null, { applicationId: app.id, providerId, email: app.email });
+  return { app, providerId, clinicId };
+});
+
+adminRouter.post('/admin/provider-applications/:id/approve', (req, res) => {
+  let result;
+  try {
+    result = runApproval(req);
+  } catch (e) {
+    if (e instanceof ApproveConflict) return res.status(e.payload.status).json(e.payload.body);
+    throw e;
+  }
+  const { app, providerId, clinicId } = result;
+  logAudit(req.session!.userId, req.session!.role, 'provider_application_approved', null, {
+    applicationId: app.id,
+    providerId,
+    email: app.email,
+    overrodeDuplicateWarning: req.body?.override_duplicate === true,
+  });
   res.json({ ok: true, providerId, clinicId });
 });
 

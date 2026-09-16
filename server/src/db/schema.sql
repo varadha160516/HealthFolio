@@ -203,6 +203,12 @@ CREATE TABLE IF NOT EXISTS provider_applications (
   reviewed_by_user_id TEXT REFERENCES users(id),
   reviewed_at TEXT,
   created_provider_id TEXT REFERENCES providers(id), -- set once approved
+  -- What the extraction pipeline actually read off the attached registration certificate at
+  -- submission time (ProviderCredentialExtractionResult, JSON) — kept separate from the
+  -- applicant-typed fields above so an admin can compare "what they typed" against "what the
+  -- document says" during review, rather than trusting the typed fields alone. Null if no
+  -- registration_certificate was attached, or extraction failed.
+  ocr_extraction_json TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

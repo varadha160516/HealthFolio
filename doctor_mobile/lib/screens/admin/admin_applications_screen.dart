@@ -14,6 +14,9 @@ class AdminApplicationsScreen extends StatefulWidget {
 class _AdminApplicationsScreenState extends State<AdminApplicationsScreen> {
   List<dynamic>? _applications;
   String _filter = 'pending';
+  String _sort = 'newest';
+  final _searchController = TextEditingController();
+  String _search = '';
 
   @override
   void initState() {
@@ -21,9 +24,15 @@ class _AdminApplicationsScreenState extends State<AdminApplicationsScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final api = context.read<AuthProvider>().api;
-    final list = await api.getProviderApplications(status: _filter);
+    final list = await api.getProviderApplications(status: _filter, search: _search, sort: _sort);
     if (mounted) setState(() => _applications = list);
   }
 
@@ -51,6 +60,42 @@ class _AdminApplicationsScreenState extends State<AdminApplicationsScreen> {
               _chip('rejected', 'Rejected'),
             ]),
           ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'Search name, email, registration no.',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  suffixIcon: _search.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 16),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _search = '');
+                            _load();
+                          },
+                        ),
+                ),
+                onSubmitted: (v) {
+                  setState(() => _search = v.trim());
+                  _load();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: _sort == 'newest' ? 'Newest first' : 'Oldest first',
+              icon: Icon(_sort == 'newest' ? Icons.south_rounded : Icons.north_rounded, size: 20),
+              onPressed: () {
+                setState(() => _sort = _sort == 'newest' ? 'oldest' : 'newest');
+                _load();
+              },
+            ),
+          ]),
           const SizedBox(height: 14),
           if (_applications == null)
             const Padding(padding: EdgeInsets.only(top: 40), child: Center(child: CircularProgressIndicator(color: docPrimary)))
@@ -88,6 +133,7 @@ class _AdminApplicationsScreenState extends State<AdminApplicationsScreen> {
   Widget _applicationCard(Map<String, dynamic> app) {
     final clinic = app['clinic_mode'] == 'new' ? app['new_clinic_name'] : null;
     final submitted = DateTime.tryParse(app['created_at'] as String? ?? '')?.toLocal();
+    final documentCount = (app['document_count'] as num?)?.toInt() ?? 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
       child: InkWell(
@@ -111,7 +157,16 @@ class _AdminApplicationsScreenState extends State<AdminApplicationsScreen> {
                   [app['role_requested'] == 'doctor' ? (app['specialty'] ?? 'Doctor') : 'Clinic front desk', clinic].where((v) => v != null).join(' · '),
                   style: const TextStyle(color: docMuted, fontSize: 11.5),
                 ),
-                if (submitted != null) Text(DateFormat('MMM d, yyyy').format(submitted), style: const TextStyle(color: docMutedDim, fontSize: 10)),
+                Row(children: [
+                  if (submitted != null) Text(DateFormat('MMM d, yyyy').format(submitted), style: const TextStyle(color: docMutedDim, fontSize: 10)),
+                  if (submitted != null) const SizedBox(width: 6),
+                  Icon(Icons.description_outlined, size: 11, color: documentCount == 0 ? docDanger : docMutedDim),
+                  const SizedBox(width: 2),
+                  Text(
+                    documentCount == 0 ? 'No documents' : '$documentCount document${documentCount == 1 ? '' : 's'}',
+                    style: TextStyle(color: documentCount == 0 ? docDanger : docMutedDim, fontSize: 10, fontWeight: documentCount == 0 ? FontWeight.w700 : FontWeight.w400),
+                  ),
+                ]),
               ]),
             ),
             const Icon(Icons.chevron_right_rounded, color: docMuted),

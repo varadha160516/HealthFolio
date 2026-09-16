@@ -381,6 +381,12 @@ export function runMigrations(db: Db) {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_external_visits_member ON external_visits (member_id, visit_date DESC)');
 
+  // What the extraction pipeline actually read off the applicant's attached registration
+  // certificate at submission time — kept separate from the applicant-typed fields so an admin
+  // reviewing the application can compare "what they typed" against "what the document says"
+  // rather than trusting the typed fields alone.
+  ensureColumn(db, 'provider_applications', 'ocr_extraction_json', 'TEXT');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS referrals (
       id TEXT PRIMARY KEY,
