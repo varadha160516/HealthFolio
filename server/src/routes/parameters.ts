@@ -3,8 +3,19 @@ import { db, now } from '../db/db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { assertFamilyAccess } from './family.js';
 import { getHealthInsight } from '../pipeline/healthInsights.js';
+import { computeHealthIndex } from '../pipeline/healthIndex.js';
 
 export const parametersRouter = Router();
+
+// Composite "Health Index" — see pipeline/healthIndex.ts for the methodology note on why this is
+// CareLoop's own composite calculation, not a copy of any third-party product's proprietary logic.
+parametersRouter.get('/parameters/health-index', requireAuth, (req, res) => {
+  const memberId = req.query.member_id as string;
+  if (!memberId || !assertFamilyAccess(req, res, memberId)) return;
+  const member = db.prepare('SELECT dob FROM members WHERE id = ?').get(memberId) as { dob: string | null } | undefined;
+  const ageYears = member?.dob ? Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+  res.json(computeHealthIndex(memberId, ageYears));
+});
 
 // Health insights agent (PRD Section 13.1) — a cached, display-only plain-language summary of
 // what changed in this member's recent results, for the Overview tab.

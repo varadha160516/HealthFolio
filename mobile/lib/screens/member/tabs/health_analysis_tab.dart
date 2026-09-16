@@ -24,11 +24,19 @@ class _HealthAnalysisTabState extends State<HealthAnalysisTab> {
   String? _selectedCategory;
   Map<String, dynamic>? _data;
   bool _loadingData = false;
+  Map<String, dynamic>? _healthIndex;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    _loadHealthIndex();
+  }
+
+  Future<void> _loadHealthIndex() async {
+    final api = context.read<AuthProvider>().api;
+    final index = await api.getHealthIndex(widget.memberId);
+    if (mounted) setState(() => _healthIndex = index);
   }
 
   Future<void> _loadCategories() async {
@@ -95,6 +103,10 @@ class _HealthAnalysisTabState extends State<HealthAnalysisTab> {
             ),
           ]),
           const SizedBox(height: 10),
+          if (_healthIndex != null) ...[
+            _HealthIndexCard(data: _healthIndex!),
+            const SizedBox(height: 14),
+          ],
           SizedBox(
             height: 32,
             child: ListView.separated(
@@ -129,6 +141,129 @@ class _HealthAnalysisTabState extends State<HealthAnalysisTab> {
             _PopulatedView(data: _data!, memberId: widget.memberId),
         ],
       ),
+    );
+  }
+}
+
+Color _tierColor(String? tier) => switch (tier) {
+      'optimal' => careloopGreen,
+      'normal' => careloopInfo,
+      'watch' => careloopWarning,
+      'abnormal' => careloopDanger,
+      _ => careloopMutedDim,
+    };
+
+Color _tierBg(String? tier) => switch (tier) {
+      'optimal' => careloopGreenBg,
+      'normal' => careloopNewBg,
+      'watch' => careloopWarningBg,
+      'abnormal' => careloopAbnormalBg,
+      _ => careloopSurfaceRaised,
+    };
+
+String _tierLabel(String? tier) => switch (tier) { 'optimal' => 'Optimal', 'normal' => 'Normal', 'watch' => 'Watch', 'abnormal' => 'Abnormal', _ => 'No data' };
+
+/// A composite wellness score built from published clinical formulas (HOMA-IR, triglyceride/HDL
+/// ratio, Non-HDL cholesterol, FIB-4) computed from the member's own latest lab values — CareLoop's
+/// own composite methodology, not a copy of any third-party product's proprietary scoring.
+class _HealthIndexCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _HealthIndexCard({required this.data});
+
+  void _showMethodology(BuildContext context) {
+    final note = data['methodologyNote'] as String? ?? '';
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('How your Health Index is calculated'),
+        content: Text(note, style: const TextStyle(height: 1.5)),
+        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Got it'))],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final score = data['compositeScore'] as int?;
+    final tier = data['compositeTier'] as String?;
+    final subScores = (data['subScores'] as List).cast<Map<String, dynamic>>();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: careloopSurface, borderRadius: BorderRadius.circular(careloopRadiusMd), border: careloopCardBorder, boxShadow: careloopCardShadow),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Row(children: [
+              const Text('HEALTH INDEX', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: careloopMutedDim, letterSpacing: 0.4)),
+              const SizedBox(width: 5),
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => _showMethodology(context),
+                child: const Icon(Icons.info_outline_rounded, size: 13, color: careloopMutedDim),
+              ),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        if (score == null) ...[
+          Row(children: [
+            const Icon(Icons.science_outlined, size: 22, color: careloopMutedDim),
+            const SizedBox(width: 10),
+            const Expanded(child: Text('Not enough lab data yet — upload a lipid panel, liver panel, or diabetes panel to see this.', style: TextStyle(fontSize: 12, color: careloopMuted, height: 1.4))),
+          ]),
+        ] else ...[
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('$score', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: _tierColor(tier))),
+            const Padding(padding: EdgeInsets.only(bottom: 6, left: 2), child: Text('/ 100', style: TextStyle(fontSize: 13, color: careloopMutedDim, fontWeight: FontWeight.w600))),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: _tierBg(tier), borderRadius: BorderRadius.circular(999)),
+              child: Text(_tierLabel(tier), style: TextStyle(color: _tierColor(tier), fontWeight: FontWeight.w700, fontSize: 11)),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          for (final s in subScores) _SubScoreRow(subScore: s),
+        ],
+      ]),
+    );
+  }
+}
+
+class _SubScoreRow extends StatelessWidget {
+  final Map<String, dynamic> subScore;
+  const _SubScoreRow({required this.subScore});
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = subScore['missing'] == true;
+    final tier = subScore['tier'] as String?;
+    final value = subScore['value'];
+    final unit = subScore['unit'] as String? ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(subScore['label'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              if (missing) Text(subScore['missingReason'] ?? 'No data yet', style: const TextStyle(fontSize: 10, color: careloopMutedDim)),
+            ],
+          ),
+        ),
+        if (!missing) ...[
+          Text('$value${unit.isNotEmpty ? ' $unit' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
+        ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: _tierBg(tier), borderRadius: BorderRadius.circular(999)),
+          child: Text(_tierLabel(tier), style: TextStyle(color: _tierColor(tier), fontWeight: FontWeight.w700, fontSize: 9.5)),
+        ),
+      ]),
     );
   }
 }
