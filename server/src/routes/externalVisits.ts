@@ -19,15 +19,20 @@ externalVisitsRouter.get('/members/:id/external-visits', requireAuth, (req, res)
 
 externalVisitsRouter.post('/members/:id/external-visits', requireAuth, (req, res) => {
   if (!assertFamilyAccess(req, res, req.params.id)) return;
-  const { doctor_name, hospital_name, visit_date, diagnosis, notes } = req.body ?? {};
+  const { doctor_name, hospital_name, visit_date, diagnosis, notes, document_id } = req.body ?? {};
   if (!doctor_name || !String(doctor_name).trim()) return res.status(400).json({ error: 'doctor_name is required' });
   if (!visit_date) return res.status(400).json({ error: 'visit_date is required' });
 
+  if (document_id) {
+    const doc = db.prepare('SELECT member_id FROM documents WHERE id = ?').get(document_id) as { member_id: string } | undefined;
+    if (!doc || doc.member_id !== req.params.id) return res.status(400).json({ error: 'document_id does not belong to this member' });
+  }
+
   const id = uuid();
   db.prepare(
-    `INSERT INTO external_visits (id, member_id, doctor_name, hospital_name, visit_date, diagnosis, notes, logged_by_user_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, req.params.id, String(doctor_name).trim(), hospital_name ?? null, visit_date, diagnosis ?? null, notes ?? null, req.session!.userId, now());
+    `INSERT INTO external_visits (id, member_id, doctor_name, hospital_name, visit_date, diagnosis, notes, document_id, logged_by_user_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, req.params.id, String(doctor_name).trim(), hospital_name ?? null, visit_date, diagnosis ?? null, notes ?? null, document_id ?? null, req.session!.userId, now());
 
   res.status(201).json({ id });
 });

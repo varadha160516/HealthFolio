@@ -30,6 +30,10 @@ export interface PrescriptionLineItemExtracted {
 export interface PrescriptionExtractionResult {
   diagnosis_text: string | null;
   prescribed_date: string | null;
+  // The prescriber's name/letterhead as printed on the document — only set when the member
+  // uploads someone else's paper prescription (Section 3.4); a doctor's own e-prescription already
+  // knows its provider_id and never calls this extractor. Never guessed — null if not printed.
+  prescriber_name: string | null;
   line_items: PrescriptionLineItemExtracted[];
 }
 

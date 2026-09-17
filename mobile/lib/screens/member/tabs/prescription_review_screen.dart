@@ -22,7 +22,12 @@ String? _computeEndDate(String startDate, String? duration) {
 class PrescriptionReviewScreen extends StatefulWidget {
   final String memberId;
   final String documentId;
-  const PrescriptionReviewScreen({super.key, required this.memberId, required this.documentId});
+  // Used only when the certificate/document didn't have a printed prescriber name or diagnosis to
+  // read — e.g. arriving here from "Log an outside visit", where the member already typed the
+  // doctor's name and reason themselves. An OCR'd value always wins over these when present.
+  final String? fallbackPrescribedBy;
+  final String? fallbackDiagnosis;
+  const PrescriptionReviewScreen({super.key, required this.memberId, required this.documentId, this.fallbackPrescribedBy, this.fallbackDiagnosis});
 
   @override
   State<PrescriptionReviewScreen> createState() => _PrescriptionReviewScreenState();
@@ -50,6 +55,10 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
     final api = context.read<AuthProvider>().api;
     final prescription = _doc!['prescription'] as Map<String, dynamic>?;
     final startDate = (prescription?['issued_at'] as String?)?.substring(0, 10) ?? DateTime.now().toIso8601String().substring(0, 10);
+    final prescribedByRaw = prescription?['prescriber_name'] as String?;
+    final prescribedBy = (prescribedByRaw != null && prescribedByRaw.isNotEmpty) ? prescribedByRaw : widget.fallbackPrescribedBy;
+    final diagnosisRaw = prescription?['diagnosis_text'] as String?;
+    final diagnosis = (diagnosisRaw != null && diagnosisRaw.isNotEmpty) ? diagnosisRaw : widget.fallbackDiagnosis;
     var added = 0;
     try {
       for (var i = 0; i < items.length; i++) {
@@ -64,7 +73,8 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
           'times': times,
           'start_date': startDate,
           'end_date': _computeEndDate(startDate, item['duration'] as String?),
-          'purpose': prescription?['diagnosis_text'],
+          'prescribed_by': prescribedBy,
+          'purpose': diagnosis,
           'prescription_line_item_id': item['id'],
         });
         added++;
@@ -81,6 +91,9 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
   Widget build(BuildContext context) {
     if (_doc == null) return const Scaffold(backgroundColor: careloopBg, body: Center(child: CircularProgressIndicator()));
     final items = ((_doc!['prescriptionLineItems'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final prescription = _doc!['prescription'] as Map<String, dynamic>?;
+    final prescribedByRaw = prescription?['prescriber_name'] as String?;
+    final prescribedBy = (prescribedByRaw != null && prescribedByRaw.isNotEmpty) ? prescribedByRaw : widget.fallbackPrescribedBy;
 
     return Scaffold(
       backgroundColor: careloopBg,
@@ -117,6 +130,10 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
                     child: Text('We found ${items.length} medication${items.length == 1 ? '' : 's'}', style: const TextStyle(color: careloopGreen, fontWeight: FontWeight.w700, fontSize: 12)),
                   ),
                 ),
+                if (prescribedBy != null && prescribedBy.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Center(child: Text('Prescribed by $prescribedBy', style: const TextStyle(color: careloopMuted, fontSize: 11.5))),
+                ],
                 const SizedBox(height: 12),
                 Expanded(
                   child: ListView.separated(

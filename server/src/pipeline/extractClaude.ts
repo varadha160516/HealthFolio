@@ -128,10 +128,13 @@ Return STRICT JSON only, matching this shape exactly, no prose before or after:
 }`;
 
 const PRESCRIPTION_SYSTEM_PROMPT = `You are the extraction stage of a medical prescription parsing pipeline. You are shown a photo/PDF of a
-handwritten or printed prescription. Extract each medicine line item. Return STRICT JSON only, no prose:
+handwritten or printed prescription. Extract each medicine line item and, if printed, the prescriber's name (from a
+letterhead, signature block, or printed name — not a guess; null if it isn't actually printed anywhere). Return
+STRICT JSON only, no prose:
 {
   "diagnosis_text": string | null,
   "prescribed_date": "YYYY-MM-DD string" | null,
+  "prescriber_name": string | null,
   "line_items": [ { "medicine_name": string, "dosage": string | null, "frequency": string | null, "duration": string | null } ]
 }`;
 

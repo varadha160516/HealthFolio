@@ -286,6 +286,10 @@ CREATE TABLE IF NOT EXISTS prescriptions (
   -- ICD-10 table.
   icd_code TEXT,
   notes TEXT,
+  -- Only set for member-uploaded photos of someone else's paper prescription — whatever name was
+  -- actually printed on it (never a guess). Null for provider-issued e-prescriptions, which already
+  -- know their provider_id.
+  prescriber_name TEXT,
   issued_at TEXT NOT NULL
 );
 
@@ -432,6 +436,9 @@ CREATE TABLE IF NOT EXISTS external_visits (
   visit_date TEXT NOT NULL,
   diagnosis TEXT,
   notes TEXT,
+  -- Optional attachment (prescription photo, discharge summary, etc.) — a normal documents row via
+  -- the same upload+OCR pipeline as everything else, just linked back to this visit for context.
+  document_id TEXT REFERENCES documents(id),
   logged_by_user_id TEXT NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL
 );

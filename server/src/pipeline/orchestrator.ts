@@ -191,8 +191,8 @@ export async function runPrescriptionPipeline(documentId: string, memberId: stri
 
   const prescriptionId = uuid();
   db.prepare(
-    `INSERT INTO prescriptions (id, appointment_id, provider_id, member_id, document_id, diagnosis_text, notes, issued_at) VALUES (?, NULL, NULL, ?, ?, ?, NULL, ?)`
-  ).run(prescriptionId, memberId, documentId, extraction.diagnosis_text, nowTs);
+    `INSERT INTO prescriptions (id, appointment_id, provider_id, member_id, document_id, diagnosis_text, notes, prescriber_name, issued_at) VALUES (?, NULL, NULL, ?, ?, ?, NULL, ?, ?)`
+  ).run(prescriptionId, memberId, documentId, extraction.diagnosis_text, extraction.prescriber_name, nowTs);
 
   const insertLine = db.prepare(
     `INSERT INTO prescription_line_items (id, prescription_id, medicine_name, strength, dosage, frequency, duration, instructions) VALUES (?, ?, ?, NULL, ?, ?, ?, NULL)`

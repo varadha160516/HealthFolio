@@ -58,7 +58,7 @@ export const mockAdapter: ExtractAdapter = {
       { medicine_name: 'Metformin', dosage: '500mg', frequency: 'BD', duration: '30 days' },
       { medicine_name: 'Atorvastatin', dosage: '10mg', frequency: 'OD (night)', duration: '30 days' },
     ];
-    return { diagnosis_text: 'Routine follow-up', prescribed_date: new Date().toISOString().slice(0, 10), line_items: meds };
+    return { diagnosis_text: 'Routine follow-up', prescribed_date: new Date().toISOString().slice(0, 10), prescriber_name: 'Dr. Ananya Rao', line_items: meds };
   },
 
   async extractProviderCredential(_pages: PageInput[]): Promise<ProviderCredentialExtractionResult> {

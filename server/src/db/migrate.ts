@@ -386,6 +386,8 @@ export function runMigrations(db: Db) {
   // reviewing the application can compare "what they typed" against "what the document says"
   // rather than trusting the typed fields alone.
   ensureColumn(db, 'provider_applications', 'ocr_extraction_json', 'TEXT');
+  ensureColumn(db, 'prescriptions', 'prescriber_name', 'TEXT');
+  ensureColumn(db, 'external_visits', 'document_id', 'TEXT REFERENCES documents(id)');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS referrals (

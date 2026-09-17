@@ -6,10 +6,13 @@ import '../../../utils/medication_schedule_infer.dart';
 import '../../../utils/motion.dart';
 import '../../../widgets/section_card.dart';
 import 'add_medication_sheet.dart';
+import 'document_viewer_screen.dart';
+import 'import_prescription_sheet.dart';
 import 'log_external_visit_sheet.dart';
 import 'medication_detail_screen.dart';
 import 'order_medicine_screen.dart';
 import 'pharmacy_orders_screen.dart';
+import 'prescription_review_screen.dart';
 
 enum _Segment { active, history }
 
@@ -49,11 +52,47 @@ class _MedicationsTabState extends State<MedicationsTab> {
     if (result == true) _load();
   }
 
+  // Reuses the existing import-then-review pipeline (extraction already built, just never wired
+  // to an entry point): pick a photo/PDF, upload as document_type='prescription' (runs the real
+  // OCR pipeline), then review-and-confirm every line item before anything is added.
+  Future<void> _openScanPrescription() async {
+    final uploadResult = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => ImportPrescriptionSheet(memberId: widget.memberId),
+    );
+    if (uploadResult == null || !mounted) return;
+    final documentId = uploadResult['documentId'] as String?;
+    if (documentId == null) return;
+    final added = await Navigator.of(context).push<int>(pushRoute(PrescriptionReviewScreen(memberId: widget.memberId, documentId: documentId)));
+    if ((added ?? 0) > 0) _load();
+  }
+
   Future<void> _openLogExternalVisit() async {
     final result = await showModalBottomSheet<Map<String, dynamic>>(context: context, isScrollControlled: true, builder: (_) => LogExternalVisitSheet(memberId: widget.memberId));
     if (result?['saved'] != true || !mounted) return;
     await _load();
     if (!mounted) return;
+
+    final hospital = (result!['hospital_name'] as String?)?.trim();
+    final prescribedBy = hospital != null && hospital.isNotEmpty ? '${result['doctor_name']} ($hospital)' : result['doctor_name'] as String;
+    final diagnosis = result['diagnosis'] as String?;
+    final prescriptionId = result['prescriptionId'] as String?;
+    final documentId = result['documentId'] as String?;
+
+    // A prescription photo was attached and actually came back with real extracted line items —
+    // go straight to reviewing those (same safety gate as everywhere else) instead of manual entry.
+    if (result['documentType'] == 'prescription' && prescriptionId != null && documentId != null) {
+      final added = await Navigator.of(context).push<int>(pushRoute(PrescriptionReviewScreen(
+        memberId: widget.memberId,
+        documentId: documentId,
+        fallbackPrescribedBy: prescribedBy,
+        fallbackDiagnosis: diagnosis,
+      )));
+      if ((added ?? 0) > 0) _load();
+      return;
+    }
+
     final addMeds = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -66,14 +105,12 @@ class _MedicationsTabState extends State<MedicationsTab> {
       ),
     );
     if (addMeds != true || !mounted) return;
-    final hospital = (result!['hospital_name'] as String?)?.trim();
-    final prescribedBy = hospital != null && hospital.isNotEmpty ? '${result['doctor_name']} ($hospital)' : result['doctor_name'] as String;
     final added = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (_) => AddMedicationSheet(
         memberId: widget.memberId,
-        initial: {'prescribed_by': prescribedBy, 'purpose': result['diagnosis']},
+        initial: {'prescribed_by': prescribedBy, 'purpose': diagnosis},
       ),
     );
     if (added == true) _load();
@@ -197,6 +234,8 @@ class _MedicationsTabState extends State<MedicationsTab> {
               child: Text(_segment == _Segment.active ? 'No active medications yet.' : 'No past medications yet.', textAlign: TextAlign.center, style: const TextStyle(color: careloopMuted)),
             ),
           const SizedBox(height: 8),
+          _ImportRow(icon: Icons.document_scanner_outlined, title: 'Scan a prescription', subtitle: 'Add medicines from a photo or PDF', onTap: _openScanPrescription),
+          const SizedBox(height: 8),
           _ImportRow(icon: Icons.local_shipping_rounded, title: 'Order medicine', subtitle: 'Get your active medicines delivered', onTap: _openOrderMedicine),
           const SizedBox(height: 8),
           _ImportRow(icon: Icons.receipt_long_rounded, title: 'My orders', subtitle: 'Track medicine deliveries', onTap: _openOrders),
@@ -292,6 +331,7 @@ class _ExternalVisitCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hospital = visit['hospital_name'] as String?;
     final diagnosis = visit['diagnosis'] as String?;
+    final documentId = visit['document_id'] as String?;
     final date = DateTime.tryParse(visit['visit_date'] as String? ?? '');
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
@@ -309,6 +349,18 @@ class _ExternalVisitCard extends StatelessWidget {
                 style: const TextStyle(color: careloopMuted, fontSize: 11),
               ),
               if (diagnosis != null && diagnosis.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(diagnosis, style: const TextStyle(color: careloopMuted, fontSize: 11, fontStyle: FontStyle.italic))),
+              if (documentId != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).push(pushRoute(DocumentViewerScreen(documentId: documentId))),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.attach_file_rounded, size: 12, color: careloopAccent),
+                      SizedBox(width: 3),
+                      Text('View attachment', style: TextStyle(color: careloopAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ),
             ]),
           ),
           IconButton(icon: const Icon(Icons.close_rounded, size: 17, color: careloopMutedDim), onPressed: onDelete),
