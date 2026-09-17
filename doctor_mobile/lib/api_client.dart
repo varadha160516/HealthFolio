@@ -96,6 +96,11 @@ class ApiClient {
   Future<Map<String, dynamic>> saveConsultationNotes(String appointmentId, Map<String, dynamic> payload) async =>
       await _put('/appointments/$appointmentId/consultation-notes', payload);
 
+  // Ambient scribe — structures a raw transcript into the same shape as consultation notes above.
+  // Ephemeral: never persists anything, the doctor reviews/edits before saving as usual.
+  Future<Map<String, dynamic>> scribeTranscript(String appointmentId, String transcript) async =>
+      await _post('/appointments/$appointmentId/scribe', {'transcript': transcript});
+
   // --- Diagnosis + medications (issued as a prescription, same record the member sees) ---
   Future<void> issuePrescription(String appointmentId, {String? diagnosisText, String? icdCode, String? notes, required List<Map<String, dynamic>> lineItems}) =>
       _post('/appointments/$appointmentId/prescriptions', {'diagnosis_text': diagnosisText, 'icd_code': icdCode, 'notes': notes, 'line_items': lineItems});

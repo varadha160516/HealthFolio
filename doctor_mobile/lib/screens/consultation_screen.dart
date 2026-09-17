@@ -5,6 +5,7 @@ import '../api_client.dart';
 import '../auth_provider.dart';
 import '../data/medical_reference.dart';
 import '../theme.dart';
+import '../widgets/ambient_scribe_card.dart';
 import '../widgets/autocomplete_field.dart';
 import 'patient_history_screen.dart';
 import 'visit_summary_screen.dart';
@@ -204,6 +205,59 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       'follow_up_reason': _followUpReason.text.trim(),
     });
     if (!silent) await _snack('Notes saved');
+  }
+
+  static const _kFollowUpValues = ['3_days', '1_week', '1_month', 'as_needed'];
+
+  // Merges the structured scribe result into the same fields _saveNotes reads — never overwrites
+  // a field the doctor already typed, EXCEPT the general-exam trio (condition/consciousness/
+  // hydration), which start pre-filled with generic defaults ('Stable', 'Alert & oriented',
+  // 'Adequate') rather than anything the doctor entered, so those specifically defer to what was
+  // actually said instead of protecting a placeholder. Nothing is saved automatically — the doctor
+  // still reviews every field and presses Save themselves.
+  Future<void> _fillNotesFromScribe(String transcript) async {
+    try {
+      final result = await _api.scribeTranscript(widget.appointmentId, transcript);
+      if (!mounted) return;
+      setState(() {
+        if (_chiefComplaint.text.trim().isEmpty && (result['chief_complaint'] as String?)?.isNotEmpty == true) {
+          _chiefComplaint.text = result['chief_complaint'];
+        }
+        if (_duration.text.trim().isEmpty && (result['symptom_duration'] as String?)?.isNotEmpty == true) {
+          _duration.text = result['symptom_duration'];
+        }
+        _symptoms.addAll(((result['symptoms'] as List?) ?? []).cast<String>());
+
+        final exam = result['examination'] as Map<String, dynamic>?;
+        final general = exam?['general'] as Map<String, dynamic>?;
+        if (general?['condition'] != null) _condition.text = general!['condition'];
+        if (general?['consciousness'] != null) _consciousness.text = general!['consciousness'];
+        if (general?['hydration'] != null) _hydration.text = general!['hydration'];
+
+        final system = exam?['system'] as Map<String, dynamic>?;
+        _respiratory.addAll(((system?['respiratory'] as List?) ?? []).cast<String>());
+        if (_cardiovascular.text.trim().isEmpty && (system?['cardiovascular'] as String?)?.isNotEmpty == true) {
+          _cardiovascular.text = system!['cardiovascular'];
+        }
+        if (_abdomen.text.trim().isEmpty && (system?['abdomen'] as String?)?.isNotEmpty == true) _abdomen.text = system!['abdomen'];
+        if (_cns.text.trim().isEmpty && (system?['cns'] as String?)?.isNotEmpty == true) _cns.text = system!['cns'];
+
+        if (_assessment.text.trim().isEmpty && (result['assessment_notes'] as String?)?.isNotEmpty == true) {
+          _assessment.text = result['assessment_notes'];
+        }
+        _advice.addAll(((result['advice'] as List?) ?? []).cast<String>());
+
+        final followUp = result['follow_up_after'] as String?;
+        if (followUp != null && _kFollowUpValues.contains(followUp)) _followUpAfter = followUp;
+        if (_followUpReason.text.trim().isEmpty && (result['follow_up_reason'] as String?)?.isNotEmpty == true) {
+          _followUpReason.text = result['follow_up_reason'];
+        }
+      });
+      await _snack('Filled from your recording — review before saving.');
+      _scrollToSection(_symptomsKey);
+    } on ApiException catch (e) {
+      await _snack(e.message);
+    }
   }
 
   Future<void> _issuePrescription() async {
@@ -706,6 +760,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   ),
                 ],
                 if (safetyFlags.isNotEmpty) _safetyCheckBanner(safetyFlags),
+                AmbientScribeCard(onFillNotes: _fillNotesFromScribe),
                 _section('Vitals', Icons.monitor_heart_rounded, [
               if (_vitals.isNotEmpty) _latestVitalsRow(_vitals.first as Map<String, dynamic>),
               if (_vitals.isNotEmpty) const SizedBox(height: 10),
@@ -739,7 +794,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               const SizedBox(height: 8),
               TextField(controller: _duration, decoration: const InputDecoration(labelText: 'Duration (e.g. 2 days)')),
               const SizedBox(height: 10),
-              Wrap(spacing: 7, runSpacing: 7, children: [for (final s in _commonSymptoms) _toggleChip(s, _symptoms.contains(s), () => setState(() => _symptoms.contains(s) ? _symptoms.remove(s) : _symptoms.add(s)))]),
+              Wrap(spacing: 7, runSpacing: 7, children: [
+                for (final s in _commonSymptoms) _toggleChip(s, _symptoms.contains(s), () => setState(() => _symptoms.contains(s) ? _symptoms.remove(s) : _symptoms.add(s))),
+                // Anything the ambient scribe (or a previous session) added beyond the preset list
+                // — shown so nothing that will actually be saved is invisible to the doctor.
+                for (final s in _symptoms.where((s) => !_commonSymptoms.contains(s)))
+                  _toggleChip(s, true, () => setState(() => _symptoms.remove(s))),
+              ]),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : () => _saveNotes(), child: const Text('Save symptoms'))),
             ], sectionKey: _symptomsKey),
@@ -757,7 +818,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               const SizedBox(height: 8),
               const Text('Respiratory', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
               const SizedBox(height: 6),
-              Wrap(spacing: 7, runSpacing: 7, children: [for (final f in _respiratoryFindings) _toggleChip(f, _respiratory.contains(f), () => setState(() => _respiratory.contains(f) ? _respiratory.remove(f) : _respiratory.add(f)))]),
+              Wrap(spacing: 7, runSpacing: 7, children: [
+                for (final f in _respiratoryFindings) _toggleChip(f, _respiratory.contains(f), () => setState(() => _respiratory.contains(f) ? _respiratory.remove(f) : _respiratory.add(f))),
+                for (final f in _respiratory.where((f) => !_respiratoryFindings.contains(f))) _toggleChip(f, true, () => setState(() => _respiratory.remove(f))),
+              ]),
               const SizedBox(height: 10),
               TextField(controller: _cardiovascular, decoration: const InputDecoration(labelText: 'Cardiovascular findings')),
               const SizedBox(height: 8),
@@ -876,7 +940,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               const SizedBox(height: 10),
               const Text('ADVICE', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
               const SizedBox(height: 8),
-              Wrap(spacing: 7, runSpacing: 7, children: [for (final a in _adviceOptions) _toggleChip(a, _advice.contains(a), () => setState(() => _advice.contains(a) ? _advice.remove(a) : _advice.add(a)))]),
+              Wrap(spacing: 7, runSpacing: 7, children: [
+                for (final a in _adviceOptions) _toggleChip(a, _advice.contains(a), () => setState(() => _advice.contains(a) ? _advice.remove(a) : _advice.add(a))),
+                for (final a in _advice.where((a) => !_adviceOptions.contains(a))) _toggleChip(a, true, () => setState(() => _advice.remove(a))),
+              ]),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : () => _saveNotes(), child: const Text('Save notes'))),
             ], sectionKey: _planKey),

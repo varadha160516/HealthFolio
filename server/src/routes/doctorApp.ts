@@ -4,6 +4,7 @@ import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { resolveAppointment, assertAppointmentVisible } from './appointments.js';
 import { grantsDataAccess } from '../state-machine/appointment.js';
+import { structureConsultationTranscript } from '../pipeline/consultationScribe.js';
 
 export const doctorAppRouter = Router();
 
@@ -111,6 +112,23 @@ doctorAppRouter.put('/appointments/:id/consultation-notes', requireAuth, require
   }
   const row = db.prepare('SELECT * FROM consultation_notes WHERE appointment_id = ?').get(appt.id);
   res.json(serializeNotes(row));
+});
+
+// Ambient scribe — structures a raw speech-to-text transcript into the same shape as
+// consultation-notes above, so the doctor can review/edit before it's ever saved. Ephemeral: never
+// persists anything itself, same pattern as the provider-credential OCR autofill.
+doctorAppRouter.post('/appointments/:id/scribe', requireAuth, requireRole('provider_doctor'), async (req, res) => {
+  const appt = loadUnlocked(req, res);
+  if (!appt) return;
+  const transcript = (req.body?.transcript as string | undefined) ?? '';
+  if (!transcript.trim()) return res.status(400).json({ error: 'transcript is required' });
+  try {
+    const result = await structureConsultationTranscript(transcript);
+    res.json(result);
+  } catch (e) {
+    console.error(`Ambient scribe structuring failed for appointment ${appt.id}:`, e);
+    res.status(502).json({ error: 'Could not structure this recording — please fill the notes in manually.' });
+  }
 });
 
 // --- Lab orders — a doctor ordering tests mid-consultation, distinct from a member's own
