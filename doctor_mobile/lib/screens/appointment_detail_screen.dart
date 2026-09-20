@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api_client.dart';
 import '../auth_provider.dart';
+import '../services/external_link.dart';
 import '../theme.dart';
+import '../widgets/whatsapp_menu.dart';
 import 'consultation_screen.dart';
 import 'visit_summary_screen.dart';
 
@@ -24,6 +26,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   String? _error;
   String? _lastOtp;
   final _otpInput = TextEditingController();
+  bool _joining = false;
 
   @override
   void initState() {
@@ -45,6 +48,10 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     _poll?.cancel();
     if (_waitingStates.contains(appt['status'])) {
       _poll = Timer(const Duration(seconds: 2), _load);
+    } else if (appt['consultation_mode'] == 'video' && appt['status'] == 'scheduled') {
+      // Nothing to click yet on a video visit — the patient checks themselves in by joining the
+      // call, so keep looking for that instead of leaving the screen stale.
+      _poll = Timer(const Duration(seconds: 6), _load);
     }
     if (appt['status'] == 'consent_granted' && _visitHistory == null) {
       try {
@@ -73,6 +80,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     final status = appt['status'] as String;
     final consentGrant = appt['consentGrant'] as Map<String, dynamic>?;
     final unlocked = status == 'consent_granted' || status == 'in_consultation';
+    final isVideo = appt['consultation_mode'] == 'video';
     final dob = member?['dob'] as String?;
     final age = dob != null ? (DateTime.now().difference(DateTime.tryParse(dob) ?? DateTime.now()).inDays / 365.25).floor() : null;
 
@@ -96,17 +104,26 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                 Text('${age != null ? '$age years · ' : ''}${_cap(member?['sex'])}', style: const TextStyle(color: docMuted, fontSize: 12.5, fontWeight: FontWeight.w500)),
               ]),
             ),
+            if (appt['whatsapp_available'] == true)
+              WhatsAppMenuButton(
+                options: whatsappOptions(status: status, video: isVideo, hasToken: appt['token_number'] != null, hasSummary: appt['has_visit_summary'] == true),
+                getLink: (kind) => context.read<AuthProvider>().api.whatsappLink(widget.appointmentId, kind),
+              ),
           ]),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (member?['blood_group'] != null) _chip('Blood group · ${member!['blood_group']}', docSurfaceRaised, docTextPrimary),
+            if (isVideo) _chip('Video consultation', docInfoBg, docInfo),
             StatusPill.forAppointment(status),
           ]),
           const SizedBox(height: 18),
 
           if (_error != null) _errorBanner(_error!),
 
-          if (status == 'scheduled') _actionCard(
+          if (isVideo && status != 'completed' && status != 'cancelled') _videoCard(appt),
+
+          // A video patient checks themselves in by joining the call, so there's no counter step here.
+          if (status == 'scheduled' && !isVideo) _actionCard(
             title: 'Check in this patient',
             body: 'Grants no data access yet — only makes the consent-request action available.',
             button: 'Check in',
@@ -120,10 +137,13 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               Row(children: [
                 Expanded(child: ElevatedButton(onPressed: () => _requestConsent('in_app'), child: const Text('Send in-app request'))),
               ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: OutlinedButton(onPressed: () => _requestConsent('otp'), child: const Text('Use OTP fallback'))),
-              ]),
+              // The code fallback is for a patient standing in the room; over video they must approve in the app.
+              if (!isVideo) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: OutlinedButton(onPressed: () => _requestConsent('otp'), child: const Text('Use OTP fallback'))),
+                ]),
+              ],
             ]),
           ),
 
@@ -337,6 +357,66 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
           ]),
         ),
       );
+
+  bool _visitIsToday(Map<String, dynamic> appt) {
+    final dt = appt['datetime'] as String? ?? '';
+    return dt.length >= 10 && dt.substring(0, 10) == DateFormat('yyyy-MM-dd').format(DateTime.now());
+  }
+
+  Widget _videoCard(Map<String, dynamic> appt) {
+    final patientIn = appt['video_patient_joined_at'] != null;
+    // Same wall-clock-day convention as everywhere else: the call opens on the day of the visit, or
+    // as soon as the patient is already in it.
+    final open = _visitIsToday(appt) || patientIn || appt['status'] != 'scheduled';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DocCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.videocam_rounded, size: 18, color: docInfo),
+            const SizedBox(width: 8),
+            const Text('Video consultation', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            patientIn
+                ? 'The patient is in the video room.'
+                : open
+                    ? "The patient hasn't joined yet — you'll get a notification when they do."
+                    : 'The call opens on the day of the visit.',
+            style: const TextStyle(color: docMuted, fontSize: 12.5),
+          ),
+          const SizedBox(height: 4),
+          const Text('Their records stay locked until you request access and they approve it in the app.', style: TextStyle(color: docMutedDim, fontSize: 11.5)),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: _joining ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.videocam_rounded),
+              label: const Text('Join video call'),
+              onPressed: open && !_joining ? _joinVideo : null,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _joinVideo() async {
+    setState(() {
+      _joining = true;
+      _error = null;
+    });
+    try {
+      final url = await context.read<AuthProvider>().api.joinVideo(widget.appointmentId);
+      if (!mounted) return;
+      await openExternalLink(context, url, failure: "Couldn't open the video call. Install the Jitsi Meet app, then try again.");
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
 
   Future<void> _requestConsent(String method) async {
     final res = await _act(() => context.read<AuthProvider>().api.requestConsent(widget.appointmentId, method));

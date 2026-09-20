@@ -232,6 +232,15 @@ class ApiClient {
   Future<List<dynamic>> frontDeskLookupPatient(String phone) async => await _get('/frontdesk/patients/lookup?phone=${Uri.encodeQueryComponent(phone)}');
   Future<Map<String, dynamic>> frontDeskCreateWalkIn(Map<String, dynamic> payload) async => await _post('/frontdesk/walk-ins', payload);
 
+  // --- Video consultations and WhatsApp nudges. Both return a URL to open in another app; the
+  // server decides who may have it (see server/src/routes/teleconsult.ts, whatsapp.ts).
+  Future<String> joinVideo(String appointmentId) async => (await _post('/appointments/$appointmentId/video/join') as Map<String, dynamic>)['url'] as String;
+  Future<String> whatsappLink(String appointmentId, String kind) async =>
+      (await _post('/appointments/$appointmentId/whatsapp-link', {'kind': kind}) as Map<String, dynamic>)['url'] as String;
+  Future<String> frontDeskWhatsappLink(String appointmentId, String kind) async =>
+      (await _post('/frontdesk/appointments/$appointmentId/whatsapp-link', {'kind': kind}) as Map<String, dynamic>)['url'] as String;
+  Future<void> updateOffersVideo(bool offers) => _patch('/providers/me/profile', {'offers_video': offers});
+
   // --- Provider onboarding (public — no session exists yet for an applicant) ---
   Future<List<dynamic>> getPublicSpecializations() async => await _get('/public/specializations');
   Future<List<dynamic>> getPublicClinics() async => await _get('/public/clinics');

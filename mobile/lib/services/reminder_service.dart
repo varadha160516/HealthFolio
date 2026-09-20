@@ -149,6 +149,19 @@ class ReminderService {
     );
   }
 
+  /// The doctor has opened the video room and is waiting for the patient — worth an OS alert, since the
+  /// patient may be in another app.
+  Future<void> showDoctorInVideoRoom({required String appointmentId, required String providerName}) async {
+    if (!_ready) return;
+    await _plugin.show(
+      id: 0x20000000 + (appointmentId.hashCode & 0x1fffffff),
+      title: '$providerName is in the video room',
+      body: 'Open HealthFolio and tap Join video call.',
+      notificationDetails: const NotificationDetails(android: _alerts),
+      payload: 'video:$appointmentId',
+    );
+  }
+
   /// On logout: a shared device must not keep firing the previous account's reminders.
   Future<void> clearAll() async {
     await init(askPermission: false); // works from the logout path even if nothing initialised us yet

@@ -6,6 +6,7 @@ import '../../api_client.dart';
 import '../../auth_provider.dart';
 import '../../theme.dart';
 import '../clinic_screen.dart';
+import '../../widgets/whatsapp_menu.dart';
 import 'walk_in_sheet.dart';
 
 /// The front desk's whole app: the clinic's day across every doctor, and the few actions that move
@@ -287,6 +288,14 @@ class _FrontDeskShellState extends State<FrontDeskShell> {
     final sex = (patient['sex'] as String?) ?? '';
     final busy = _busy.contains(a['id']);
     final done = _bucket(status) == 'completed' || _bucket(status) == 'closed';
+    final video = a['consultation_mode'] == 'video';
+    // Only for a patient who agreed to WhatsApp updates; the server is what enforces that.
+    final wa = a['whatsapp_available'] == true
+        ? WhatsAppMenuButton(
+            options: whatsappOptions(status: status, video: video, hasToken: token != null),
+            getLink: (kind) => context.read<AuthProvider>().api.frontDeskWhatsappLink(a['id'] as String, kind),
+          )
+        : const SizedBox.shrink();
 
     return Opacity(
       opacity: done ? 0.55 : 1,
@@ -309,6 +318,7 @@ class _FrontDeskShellState extends State<FrontDeskShell> {
               Text(
                 [
                   if (time != null) DateFormat('h:mm a').format(time),
+                  if (video) 'Video',
                   if (a['is_walk_in'] == true) 'Walk-in',
                   if (a['is_follow_up'] == true) 'Follow-up',
                 ].join(' · '),
@@ -320,7 +330,12 @@ class _FrontDeskShellState extends State<FrontDeskShell> {
             if (busy)
               const Padding(padding: EdgeInsets.symmetric(horizontal: 14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
             else ...[
-              TextButton(onPressed: () => _checkIn(a['id'] as String), child: const Text('Check in')),
+              wa,
+              // A video patient checks in by joining the call, not at the counter.
+              if (video)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text('Joins online', style: TextStyle(fontSize: 11, color: docMuted)))
+              else
+                TextButton(onPressed: () => _checkIn(a['id'] as String), child: const Text('Check in')),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded, size: 18, color: docMuted),
                 onSelected: (v) {
@@ -329,8 +344,10 @@ class _FrontDeskShellState extends State<FrontDeskShell> {
                 itemBuilder: (_) => const [PopupMenuItem(value: 'cancel', child: Text('Cancel appointment'))],
               ),
             ],
-          ] else
+          ] else ...[
+            if (!done) wa,
             StatusPill.forAppointment(status),
+          ],
         ]),
       ),
     );

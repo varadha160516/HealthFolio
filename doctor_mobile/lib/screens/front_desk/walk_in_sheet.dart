@@ -22,6 +22,7 @@ class _WalkInSheetState extends State<WalkInSheet> {
   final _reason = TextEditingController();
   final _dob = TextEditingController();
   String? _sex;
+  bool _whatsappOptIn = false;
   late String _doctorId = widget.doctors.first.$1;
 
   List<Map<String, dynamic>>? _matches; // null = haven't searched yet
@@ -95,6 +96,7 @@ class _WalkInSheetState extends State<WalkInSheet> {
             'phone': _phone.text.trim(),
             if (_sex != null) 'sex': _sex,
             if (_dob.text.isNotEmpty) 'dob': _dob.text,
+            'whatsapp_opt_in': _whatsappOptIn,
           },
         if (confirmDuplicate) 'confirm_duplicate': true,
       });
@@ -198,6 +200,15 @@ class _WalkInSheetState extends State<WalkInSheet> {
               ]),
               const SizedBox(height: 6),
               TextField(controller: _dob, readOnly: true, onTap: _pickDob, decoration: const InputDecoration(labelText: 'Date of birth (optional)', suffixIcon: Icon(Icons.calendar_month_rounded, size: 18))),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                value: _whatsappOptIn,
+                onChanged: (v) => setState(() => _whatsappOptIn = v ?? false),
+                title: const Text('They agree to WhatsApp updates', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Token and reminder nudges only — nothing about their health. Ask first.', style: TextStyle(fontSize: 11, color: docMuted)),
+              ),
             ],
             if (_registering || _selectedMemberId != null) ...[
               const SizedBox(height: 10),

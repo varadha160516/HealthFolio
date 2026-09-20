@@ -36,6 +36,18 @@ class AppointmentCard extends StatelessWidget {
                 child: Text('Token ${appt['token_number']}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: docAccentDark)),
               ),
             ],
+            if (appt['consultation_mode'] == 'video') ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(color: docInfoBg, borderRadius: BorderRadius.circular(999)),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.videocam_rounded, size: 11, color: docInfo),
+                  SizedBox(width: 3),
+                  Text('Video', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: docInfo)),
+                ]),
+              ),
+            ],
             if (appt['is_walk_in'] == 1) ...[
               const SizedBox(width: 6),
               const Text('Walk-in', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: docMuted)),

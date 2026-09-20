@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../api_client.dart';
 import '../auth_provider.dart';
 import '../theme.dart';
 import '../widgets/signature_pad.dart';
@@ -37,6 +38,7 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
   final _bankIfscController = TextEditingController();
   final _bankUpiController = TextEditingController();
   bool _savingBank = false;
+  bool _savingVideo = false;
 
   @override
   void initState() {
@@ -99,6 +101,18 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payout details saved')));
     } finally {
       if (mounted) setState(() => _savingBank = false);
+    }
+  }
+
+  Future<void> _setOffersVideo(bool offers) async {
+    setState(() => _savingVideo = true);
+    try {
+      await context.read<AuthProvider>().api.updateOffersVideo(offers);
+      if (mounted) setState(() => _profile = {..._profile!, 'offers_video': offers ? 1 : 0});
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _savingVideo = false);
     }
   }
 
@@ -355,6 +369,21 @@ class _PracticeSettingsScreenState extends State<PracticeSettingsScreen> {
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _savingBank ? null : _saveBankDetails, child: const Text('Save payout details'))),
             ]),
+          ),
+          const SizedBox(height: 20),
+          const Text('VIDEO CONSULTATIONS', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          const SizedBox(height: 8),
+          DocCard(
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Offer video consultations', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: const Text(
+                'Patients can book a video visit with you in HealthFolio and join from the app; you join from the appointment screen. Their records stay locked until they approve your request — same as in person.',
+                style: TextStyle(fontSize: 12, color: docMuted),
+              ),
+              value: _profile!['offers_video'] == 1,
+              onChanged: _savingVideo ? null : _setOffersVideo,
+            ),
           ),
           const SizedBox(height: 20),
           const Text('DEFAULT CONSULTATION FEE', style: TextStyle(fontSize: 10, color: docMutedDim, fontWeight: FontWeight.w700, letterSpacing: 0.4)),

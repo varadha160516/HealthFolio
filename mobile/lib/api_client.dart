@@ -270,6 +270,8 @@ class ApiClient {
   // The doctor-approved after-visit letter for a completed visit (only exists once they've sent it).
   Future<Map<String, dynamic>> getPatientSummary(String appointmentId) async => await _get('/appointments/$appointmentId/patient-summary');
   Future<void> bookAppointment(Map<String, dynamic> payload) => _post('/appointments', payload);
+  // The link into a video consultation — only ever handed to the patient's own family and the doctor on that visit.
+  Future<String> joinVideo(String appointmentId) async => (await _post('/appointments/$appointmentId/video/join', {}) as Map<String, dynamic>)['url'] as String;
 
   // --- Referrals ---
   Future<List<dynamic>> getMemberReferrals(String memberId) async => await _get('/members/$memberId/referrals');

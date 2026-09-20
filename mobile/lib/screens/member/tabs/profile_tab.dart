@@ -40,6 +40,15 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
+  Future<void> _setWhatsapp(bool on) async {
+    try {
+      await context.read<AuthProvider>().api.updateMemberProfile(widget.memberId, {'whatsapp_opt_in': on});
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   int? _age(String? dob) {
     if (dob == null) return null;
     final d = DateTime.tryParse(dob);
@@ -233,7 +242,21 @@ class _ProfileTabState extends State<ProfileTab> {
                 // from either section) and Address now sits where Emergency phone used to.
                 _InfoRow('Blood group', m['blood_group'], icon: Icons.water_drop_rounded, iconBg: careloopBlush, iconColor: careloopDanger),
                 _InfoRow('Address', m['address'], icon: Icons.location_on_rounded, iconBg: careloopOrangeBg, iconColor: careloopOrange),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('WhatsApp updates from my clinics', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                  subtitle: Text(
+                    (m['phone'] as String?)?.trim().isNotEmpty == true
+                        ? 'Lets a clinic you have a visit with message this number about the visit — reminders and your place in the queue. Never anything about your health. Turn it off any time.'
+                        : 'Add a phone number first.',
+                    style: const TextStyle(fontSize: 11.5, color: careloopMuted),
+                  ),
+                  value: m['whatsapp_opt_in'] == 1,
+                  onChanged: (m['phone'] as String?)?.trim().isNotEmpty == true ? _setWhatsapp : null,
+                ),
+                const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(

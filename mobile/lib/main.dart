@@ -112,6 +112,7 @@ class _HomeShellState extends State<HomeShell> {
   bool _invoiceDialogOpen = false;
   final Set<String> _seenInvoiceIds = {};
   final Set<String> _osNotifiedConsentIds = {};
+  final Set<String> _osNotifiedVideoIds = {};
 
   @override
   void initState() {
@@ -185,6 +186,15 @@ class _HomeShellState extends State<HomeShell> {
       // OS-scheduled visit reminders in sync (a reschedule/cancel/new booking is picked up within
       // one poll). Idempotent — does nothing when the list hasn't changed.
       unawaited(ReminderService.instance.syncAppointmentReminders(appts).catchError((_) {}));
+      // A doctor already in the video room, with the patient not there yet — say so once per visit.
+      for (final a in appts) {
+        final active = a['status'] != 'completed' && a['status'] != 'cancelled';
+        if (a['consultation_mode'] == 'video' && active && a['video_doctor_joined_at'] != null && a['video_patient_joined_at'] == null && _osNotifiedVideoIds.add(a['id'] as String)) {
+          unawaited(ReminderService.instance
+              .showDoctorInVideoRoom(appointmentId: a['id'] as String, providerName: a['provider']?['name'] as String? ?? 'Your doctor')
+              .catchError((_) {}));
+        }
+      }
       final pending = appts.where((a) => a['status'] == 'consent_requested').toList();
       if (pending.isEmpty) return;
       final first = pending.first;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../auth_provider.dart';
+import '../../services/external_link.dart';
 import '../../theme.dart';
 import '../../utils/motion.dart';
 import '../../utils/specializations.dart';
@@ -41,6 +42,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   String _sharingPreference = 'full_history';
   final _reasonForVisit = TextEditingController();
   bool _booking = false;
+  bool _video = false;
+  String? _joiningId;
   bool _appointmentsExpanded = true;
 
   @override
@@ -146,6 +149,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
 
   void _selectProvider(Map<String, dynamic> provider) {
     setState(() {
+      // Video is per-doctor: switching to one who doesn't offer it must not carry the choice over.
+      if (provider['id'] != _selectedProviderId) _video = false;
       _selectedProviderId = provider['id'] as String;
       _selectedProvider = provider;
     });
@@ -170,8 +175,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         'datetime': _datetime!.toIso8601String(),
         'sharing_preference': _sharingPreference,
         'reason_for_visit': _reasonForVisit.text.trim().isEmpty ? null : _reasonForVisit.text.trim(),
+        'consultation_mode': _video && _selectedProvider?['offers_video'] == 1 ? 'video' : 'in_person',
       });
       setState(() {
+        _video = false;
         _selectedProviderId = null;
         _selectedProvider = null;
         _specialty = null;
@@ -197,6 +204,65 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     if (q == null) return '';
     final ahead = q['ahead'] as int;
     return ' · Token ${q['token']} — ${ahead == 0 ? 'you\'re next' : '$ahead ahead of you'}';
+  }
+
+  // A video visit is joinable from the day of the appointment (the same wall-clock-day reading the
+  // rest of the app uses), and any time once the doctor is already in the room.
+  bool _isJoinableVideo(Map<String, dynamic> a) {
+    if (a['consultation_mode'] != 'video') return false;
+    final s = a['status'] as String;
+    if (s == 'completed' || s == 'cancelled') return false;
+    final dt = a['datetime'] as String? ?? '';
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    return (dt.length >= 10 && dt.substring(0, 10) == today) || a['video_doctor_joined_at'] != null;
+  }
+
+  Future<void> _joinVideo(Map<String, dynamic> a) async {
+    final id = a['id'] as String;
+    setState(() => _joiningId = id);
+    try {
+      final url = await context.read<AuthProvider>().api.joinVideo(id);
+      if (!mounted) return;
+      await openExternalLink(context, url, failure: "Couldn't open the video call. Install the Jitsi Meet app, then tap Join again.");
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _joiningId = null);
+    }
+  }
+
+  Widget _videoBanner(Map<String, dynamic> a) {
+    final doctorIn = a['video_doctor_joined_at'] != null;
+    final when = (a['datetime'] as String).substring(11, 16);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: careloopInfo.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(careloopRadiusMd), border: Border.all(color: careloopInfo.withValues(alpha: 0.35))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.videocam_rounded, size: 18, color: careloopInfo),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Video consultation · $when', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: careloopTextPrimary))),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          '${a['member']?['name']} with ${a['provider']?['name']}${doctorIn ? ' — the doctor is in the room.' : '.'}',
+          style: const TextStyle(fontSize: 12.5, color: careloopMuted),
+        ),
+        const SizedBox(height: 4),
+        const Text('The call opens in the Jitsi Meet app. The doctor still needs your approval here before seeing any records.', style: TextStyle(fontSize: 11.5, color: careloopMutedDim)),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: _joiningId == a['id'] ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.videocam_rounded),
+            label: const Text('Join video call'),
+            onPressed: _joiningId != null ? null : () => _joinVideo(a),
+          ),
+        ),
+      ]),
+    );
   }
 
   Future<void> _respond(String id, bool approve) async {
@@ -281,6 +347,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, careloopFabClearance),
         children: [
+          for (final a in _appointments!.cast<Map<String, dynamic>>().where(_isJoinableVideo)) _videoBanner(a),
           SectionCard(
             title: 'Book an appointment',
             icon: Icons.event_available_rounded,
@@ -394,6 +461,14 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     onPressed: _pickDateTime,
                     child: Text(_datetime == null ? 'Pick date & time' : _datetime.toString().substring(0, 16)),
                   ),
+                  if (_selectedProvider!['offers_video'] == 1)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Video consultation', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      subtitle: const Text('See the doctor from home. You join from this screen at the appointment time.', style: TextStyle(fontSize: 11.5, color: careloopMuted)),
+                      value: _video,
+                      onChanged: (v) => setState(() => _video = v),
+                    ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: _sharingPreference,
@@ -455,7 +530,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                             for (final a in _appointments!.cast<Map<String, dynamic>>())
                               LedgerRow(
                                 label: '${a['member']?['name']} — ${a['provider']?['name']}',
-                                sublabel: '${(a['datetime'] as String).substring(0, 16).replaceAll('T', ' ')}${_queueText(a)}',
+                                sublabel: '${(a['datetime'] as String).substring(0, 16).replaceAll('T', ' ')}${a['consultation_mode'] == 'video' ? ' · Video' : ''}${_queueText(a)}',
                                 // The member's own list shows only scheduled/cancelled/completed —
                                 // the full provider-side state machine (checked in, consent
                                 // requested/granted, in consultation, ...) stays internal to the
