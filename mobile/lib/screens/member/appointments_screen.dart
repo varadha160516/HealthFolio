@@ -190,6 +190,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     }
   }
 
+  // Once checked in at the clinic: their token, and how many people are still waiting ahead of them
+  // (a count — the server never says who).
+  String _queueText(Map<String, dynamic> appt) {
+    final q = appt['queue'] as Map<String, dynamic>?;
+    if (q == null) return '';
+    final ahead = q['ahead'] as int;
+    return ' · Token ${q['token']} — ${ahead == 0 ? 'you\'re next' : '$ahead ahead of you'}';
+  }
+
   Future<void> _respond(String id, bool approve) async {
     await context.read<AuthProvider>().api.respondConsent(id, approve);
     _load();
@@ -446,7 +455,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                             for (final a in _appointments!.cast<Map<String, dynamic>>())
                               LedgerRow(
                                 label: '${a['member']?['name']} — ${a['provider']?['name']}',
-                                sublabel: (a['datetime'] as String).substring(0, 16).replaceAll('T', ' '),
+                                sublabel: '${(a['datetime'] as String).substring(0, 16).replaceAll('T', ' ')}${_queueText(a)}',
                                 // The member's own list shows only scheduled/cancelled/completed —
                                 // the full provider-side state machine (checked in, consent
                                 // requested/granted, in consultation, ...) stays internal to the

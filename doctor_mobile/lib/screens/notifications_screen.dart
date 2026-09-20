@@ -38,6 +38,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'consent_denied' => (Icons.block_rounded, docDanger, docDangerBg),
         'appointment_booked' => (Icons.event_available_rounded, docAccent, docAccentLight),
         'appointment_rescheduled' => (Icons.update_rounded, docWarning, docWarningBg),
+        'patient_checked_in' => (Icons.how_to_reg_rounded, docAccent, docAccentLight),
         _ => (Icons.notifications_rounded, docMuted, docSurfaceRaised),
       };
 

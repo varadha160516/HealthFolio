@@ -5,6 +5,7 @@ import '../api_client.dart';
 import '../auth_provider.dart';
 import '../data/medical_reference.dart';
 import '../theme.dart';
+import '../widgets/adherence_card.dart';
 import '../widgets/ambient_scribe_card.dart';
 import '../widgets/autocomplete_field.dart';
 import 'patient_history_screen.dart';
@@ -760,6 +761,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   ),
                 ],
                 if (safetyFlags.isNotEmpty) _safetyCheckBanner(safetyFlags),
+                if (_appt!['unlockedData']?['adherence'] != null) AdherenceCard(report: _appt!['unlockedData']['adherence'] as Map<String, dynamic>),
                 AmbientScribeCard(onFillNotes: _fillNotesFromScribe),
                 _section('Vitals', Icons.monitor_heart_rounded, [
               if (_vitals.isNotEmpty) _latestVitalsRow(_vitals.first as Map<String, dynamic>),

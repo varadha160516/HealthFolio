@@ -28,6 +28,18 @@ class AppointmentCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(datetime != null ? DateFormat('h:mm a').format(datetime) : '—', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: docAccent, letterSpacing: 0.2)),
+            if (appt['token_number'] != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(color: docAccentLight, borderRadius: BorderRadius.circular(999)),
+                child: Text('Token ${appt['token_number']}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: docAccentDark)),
+              ),
+            ],
+            if (appt['is_walk_in'] == 1) ...[
+              const SizedBox(width: 6),
+              const Text('Walk-in', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: docMuted)),
+            ],
             const Spacer(),
             StatusPill.forAppointment(status),
           ]),

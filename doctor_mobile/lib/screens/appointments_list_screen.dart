@@ -54,7 +54,12 @@ class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
         return name.contains(query) || reason.contains(query);
       }).toList();
     }
-    list.sort((a, b) => (b['datetime'] as String).compareTo(a['datetime'] as String));
+    if (_filter == 'waiting') {
+      // The waiting room is a line, not a calendar: first checked in is first seen.
+      list.sort((a, b) => ((a['token_number'] as num?) ?? 1 << 30).compareTo((b['token_number'] as num?) ?? 1 << 30));
+    } else {
+      list.sort((a, b) => (b['datetime'] as String).compareTo(a['datetime'] as String));
+    }
     return list;
   }
 

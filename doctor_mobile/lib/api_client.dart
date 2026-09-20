@@ -12,7 +12,10 @@ const String apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '
 class ApiException implements Exception {
   final String message;
   final int status;
-  ApiException(this.message, this.status);
+  /// The decoded JSON error body, when there was one — some errors carry structured detail the UI
+  /// acts on (e.g. a walk-in's 409 lists the possible duplicate patients or the existing visit).
+  final Map<String, dynamic>? body;
+  ApiException(this.message, this.status, {this.body});
   @override
   String toString() => message;
 }
@@ -67,7 +70,11 @@ class ApiClient {
       throw ApiException('Could not reach the server — check your connection and try again.', resp.statusCode);
     }
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
-      throw ApiException(decoded is Map ? (decoded['error'] ?? 'Request failed') : 'Request failed (${resp.statusCode})', resp.statusCode);
+      throw ApiException(
+        decoded is Map ? (decoded['error'] ?? 'Request failed') : 'Request failed (${resp.statusCode})',
+        resp.statusCode,
+        body: decoded is Map<String, dynamic> ? decoded : null,
+      );
     }
     return decoded;
   }
@@ -216,6 +223,14 @@ class ApiClient {
 
   // --- Compliance ---
   Future<List<dynamic>> getMyAuditLog() async => await _get('/providers/me/audit-log');
+
+  // --- Front desk (provider_clinic_admin): the clinic's whole day, and the actions that move the
+  // queue. A separate surface from the clinical endpoints on purpose — see server/src/routes/frontDesk.ts.
+  Future<Map<String, dynamic>> getFrontDeskQueue(String date) async => await _get('/frontdesk/queue?date=$date');
+  Future<Map<String, dynamic>> frontDeskCheckIn(String appointmentId) async => await _post('/frontdesk/appointments/$appointmentId/check-in');
+  Future<void> frontDeskCancel(String appointmentId) => _post('/frontdesk/appointments/$appointmentId/cancel');
+  Future<List<dynamic>> frontDeskLookupPatient(String phone) async => await _get('/frontdesk/patients/lookup?phone=${Uri.encodeQueryComponent(phone)}');
+  Future<Map<String, dynamic>> frontDeskCreateWalkIn(Map<String, dynamic> payload) async => await _post('/frontdesk/walk-ins', payload);
 
   // --- Provider onboarding (public — no session exists yet for an applicant) ---
   Future<List<dynamic>> getPublicSpecializations() async => await _get('/public/specializations');

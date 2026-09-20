@@ -6,6 +6,7 @@ import 'theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/admin/admin_shell.dart';
+import 'screens/front_desk/front_desk_shell.dart';
 
 void main() {
   runApp(const DoctorConsoleApp());
@@ -59,6 +60,9 @@ class AuthGate extends StatelessWidget {
     }
     if (!auth.isLoggedIn) return const LoginScreen();
     if (auth.session!.role == 'platform_admin') return const AdminShell();
+    // Reception gets the clinic-wide queue instead of a doctor's own screens — their account owns no
+    // appointments of its own, so the doctor shell would just be empty.
+    if (auth.session!.role == 'provider_clinic_admin') return const FrontDeskShell();
     return const HomeShell();
   }
 }
