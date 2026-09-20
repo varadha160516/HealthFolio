@@ -3,15 +3,28 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../theme.dart';
 
+// (locale id for the on-device recognizer, display name sent to the server). Same set as
+// HealthFolio's voice button and server/src/languages.ts — keep them identical.
+const _kLanguages = <(String, String)>[
+  ('en-US', 'English'),
+  ('hi-IN', 'Hindi'),
+  ('ta-IN', 'Tamil'),
+  ('te-IN', 'Telugu'),
+  ('bn-IN', 'Bengali'),
+  ('kn-IN', 'Kannada'),
+  ('mr-IN', 'Marathi'),
+];
+
 /// Ambient consultation scribe — continuous on-device speech-to-text (speech_to_text) while the
 /// doctor talks through the visit, auto-restarted across the OS recognizer's own session limits
 /// so it covers a whole consultation, not just one utterance. The transcript stays visible the
 /// whole time (never a black box), and "Fill notes" only runs when the doctor explicitly taps it
 /// — nothing is sent to the server, and nothing is saved to the record, until they choose to.
 class AmbientScribeCard extends StatefulWidget {
-  /// Called with the final transcript when the doctor taps "Fill notes". The parent owns calling
-  /// the structuring API and merging the result into its own form state.
-  final Future<void> Function(String transcript) onFillNotes;
+  /// Called with the final transcript (and the language it was spoken in) when the doctor taps
+  /// "Fill notes". The parent owns calling the structuring API and merging the result into its own
+  /// form state.
+  final Future<void> Function(String transcript, String language) onFillNotes;
   const AmbientScribeCard({super.key, required this.onFillNotes});
 
   @override
@@ -26,6 +39,8 @@ class _AmbientScribeCardState extends State<AmbientScribeCard> {
   bool _filling = false;
   String _transcript = '';
   String _partial = '';
+  int _languageIndex = 0;
+  String? _error;
 
   @override
   void initState() {
@@ -33,8 +48,21 @@ class _AmbientScribeCardState extends State<AmbientScribeCard> {
     _init();
   }
 
+  // The recognizer reports a missing language pack as an error, not as an empty result — surface
+  // it instead of leaving the doctor talking to a recording that silently captures nothing.
+  void _onError(dynamic error) {
+    final msg = (error.errorMsg as String?) ?? '';
+    if (!mounted) return;
+    if (msg.contains('language')) {
+      setState(() {
+        _recording = false;
+        _error = 'This device can\'t recognise ${_kLanguages[_languageIndex].$2} speech yet. Install its speech pack in the Google app settings, or pick another language.';
+      });
+    }
+  }
+
   Future<void> _init() async {
-    final available = await _speech.initialize(onStatus: _onStatus, onError: (_) {});
+    final available = await _speech.initialize(onStatus: _onStatus, onError: _onError);
     if (mounted) {
       setState(() {
         _speechAvailable = available;
@@ -59,6 +87,7 @@ class _AmbientScribeCardState extends State<AmbientScribeCard> {
       _recording = true;
       _transcript = '';
       _partial = '';
+      _error = null;
     });
     await _listenChunk();
   }
@@ -76,7 +105,13 @@ class _AmbientScribeCardState extends State<AmbientScribeCard> {
           setState(() => _partial = result.recognizedWords);
         }
       },
-      listenOptions: stt.SpeechListenOptions(listenMode: stt.ListenMode.dictation, partialResults: true, pauseFor: const Duration(seconds: 8), listenFor: const Duration(seconds: 55)),
+      listenOptions: stt.SpeechListenOptions(
+        listenMode: stt.ListenMode.dictation,
+        partialResults: true,
+        pauseFor: const Duration(seconds: 8),
+        listenFor: const Duration(seconds: 55),
+        localeId: _kLanguages[_languageIndex].$1,
+      ),
     );
   }
 
@@ -90,7 +125,7 @@ class _AmbientScribeCardState extends State<AmbientScribeCard> {
     if (transcript.isEmpty) return;
     setState(() => _filling = true);
     try {
-      await widget.onFillNotes(transcript);
+      await widget.onFillNotes(transcript, _kLanguages[_languageIndex].$2);
     } finally {
       if (mounted) setState(() => _filling = false);
     }
@@ -116,8 +151,30 @@ class _AmbientScribeCardState extends State<AmbientScribeCard> {
           const SizedBox(width: 6),
           const Text('AMBIENT SCRIBE', style: TextStyle(fontSize: 10, color: docAccentDark, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
           const Spacer(),
-          if (_recording) Container(width: 7, height: 7, decoration: const BoxDecoration(color: docDanger, shape: BoxShape.circle)),
+          if (_recording) Container(width: 7, height: 7, margin: const EdgeInsets.only(right: 8), decoration: const BoxDecoration(color: docDanger, shape: BoxShape.circle)),
+          PopupMenuButton<int>(
+            tooltip: 'Language spoken',
+            enabled: !_recording,
+            initialValue: _languageIndex,
+            onSelected: (i) => setState(() {
+              _languageIndex = i;
+              _error = null;
+            }),
+            itemBuilder: (_) => [for (var i = 0; i < _kLanguages.length; i++) PopupMenuItem(value: i, child: Text(_kLanguages[i].$2))],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: docSurface, borderRadius: BorderRadius.circular(999)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(_kLanguages[_languageIndex].$2, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _recording ? docMuted : docAccentDark)),
+                Icon(Icons.expand_more_rounded, size: 13, color: _recording ? docMuted : docAccentDark),
+              ]),
+            ),
+          ),
         ]),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(_error!, style: const TextStyle(fontSize: 11.5, color: docDanger, height: 1.4)),
+        ],
         const SizedBox(height: 8),
         Text(
           _recording ? 'Listening — talk through the visit as usual.' : 'Talk through the visit and this will draft your notes below for you to review.',

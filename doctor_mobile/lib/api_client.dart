@@ -98,8 +98,19 @@ class ApiClient {
 
   // Ambient scribe — structures a raw transcript into the same shape as consultation notes above.
   // Ephemeral: never persists anything, the doctor reviews/edits before saving as usual.
-  Future<Map<String, dynamic>> scribeTranscript(String appointmentId, String transcript) async =>
-      await _post('/appointments/$appointmentId/scribe', {'transcript': transcript});
+  Future<Map<String, dynamic>> scribeTranscript(String appointmentId, String transcript, {String language = 'English'}) async =>
+      await _post('/appointments/$appointmentId/scribe', {'transcript': transcript, 'language': language});
+
+  // After-visit summary — the doctor drafts an English letter from their own visit record, edits
+  // it, previews a translation into the patient's language, then sends. Nothing is stored until
+  // sent (see server/src/routes/afterVisitSummary.ts).
+  Future<Map<String, dynamic>> getAfterVisitSummary(String appointmentId) async => await _get('/appointments/$appointmentId/after-visit-summary');
+  Future<String> draftAfterVisitSummary(String appointmentId) async =>
+      (await _post('/appointments/$appointmentId/after-visit-summary/draft') as Map<String, dynamic>)['english_text'] as String;
+  Future<String?> translateAfterVisitSummary(String appointmentId, String englishText, String language) async =>
+      (await _post('/appointments/$appointmentId/after-visit-summary/translate', {'english_text': englishText, 'language': language}) as Map<String, dynamic>)['translated_text'] as String?;
+  Future<Map<String, dynamic>> sendAfterVisitSummary(String appointmentId, {required String englishText, required String language, String? translatedText}) async =>
+      await _put('/appointments/$appointmentId/after-visit-summary', {'english_text': englishText, 'language': language, if (translatedText != null) 'translated_text': translatedText});
 
   // --- Diagnosis + medications (issued as a prescription, same record the member sees) ---
   Future<void> issuePrescription(String appointmentId, {String? diagnosisText, String? icdCode, String? notes, required List<Map<String, dynamic>> lineItems}) =>

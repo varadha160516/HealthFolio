@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../auth_provider.dart';
+import '../services/notification_watcher.dart';
 import '../theme.dart';
 import 'home_screen.dart';
 import 'appointments_list_screen.dart';
@@ -14,6 +17,42 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _tab = 0;
+  late final NotificationWatcher _watcher;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = context.read<AuthProvider>();
+    _watcher = NotificationWatcher(api: auth.api, storageKey: 'notif_seen_${auth.session?.providerId ?? 'me'}')
+      ..onForegroundNew = _showInApp;
+    _watcher.start();
+  }
+
+  @override
+  void dispose() {
+    _watcher.dispose();
+    super.dispose();
+  }
+
+  // The doctor is looking at the app right now, so an OS notification would be redundant — a
+  // snackbar with a way into the feed is the right cue.
+  void _showInApp(List<Map<String, dynamic>> items) {
+    if (!mounted) return;
+    final first = items.first;
+    final more = items.length > 1 ? ' (+${items.length - 1} more)' : '';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('${first['title']} — ${first['body']}$more'),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(label: 'View', onPressed: _openNotifications),
+      ));
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    _watcher.refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +76,16 @@ class _HomeShellState extends State<HomeShell> {
           Text('ClinDesk', style: docSectionHeading().copyWith(fontSize: 18)),
         ]),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_rounded),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+          ListenableBuilder(
+            listenable: _watcher,
+            builder: (context, _) => IconButton(
+              icon: Badge(
+                isLabelVisible: _watcher.unreadCount > 0,
+                label: Text('${_watcher.unreadCount}'),
+                child: const Icon(Icons.notifications_rounded),
+              ),
+              onPressed: _openNotifications,
+            ),
           ),
         ],
       ),

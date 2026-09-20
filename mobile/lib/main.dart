@@ -13,6 +13,7 @@ import 'screens/lab_tests/lab_tests_home_screen.dart';
 import 'screens/provider/provider_console_screen.dart';
 import 'screens/admin/admin_review_queue_screen.dart';
 import 'screens/member/invoice_payment_dialog.dart';
+import 'services/reminder_service.dart';
 import 'utils/motion.dart';
 import 'widgets/glass.dart';
 import 'widgets/gradient_fab.dart';
@@ -110,6 +111,7 @@ class _HomeShellState extends State<HomeShell> {
   Timer? _invoicePoll;
   bool _invoiceDialogOpen = false;
   final Set<String> _seenInvoiceIds = {};
+  final Set<String> _osNotifiedConsentIds = {};
 
   @override
   void initState() {
@@ -118,7 +120,9 @@ class _HomeShellState extends State<HomeShell> {
     // login_screen.dart for why that raced the login->HomeShell transition and got stuck).
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeOfferBiometricOptIn());
     if (context.read<AuthProvider>().session?.isMember == true) {
-      _checkConsentRequests();
+      // Reminders need the notification plugin initialised before the first appointment sync; the
+      // poll itself runs regardless of whether that succeeds.
+      ReminderService.instance.init().catchError((_) {}).whenComplete(_checkConsentRequests);
       _consentPoll = Timer.periodic(const Duration(seconds: 8), (_) => _checkConsentRequests());
       _checkPendingInvoices();
       _invoicePoll = Timer.periodic(const Duration(seconds: 8), (_) => _checkPendingInvoices());
@@ -175,11 +179,27 @@ class _HomeShellState extends State<HomeShell> {
     final auth = context.read<AuthProvider>();
     if (auth.session?.isMember != true) return;
     try {
-      final appts = await auth.api.getAppointments();
+      final appts = (await auth.api.getAppointments()).cast<Map<String, dynamic>>();
       if (!mounted) return;
-      final pending = appts.cast<Map<String, dynamic>>().where((a) => a['status'] == 'consent_requested').toList();
+      // This poll already fetches the whole appointment list, so it's the natural place to keep the
+      // OS-scheduled visit reminders in sync (a reschedule/cancel/new booking is picked up within
+      // one poll). Idempotent — does nothing when the list hasn't changed.
+      unawaited(ReminderService.instance.syncAppointmentReminders(appts).catchError((_) {}));
+      final pending = appts.where((a) => a['status'] == 'consent_requested').toList();
       if (pending.isEmpty) return;
-      await _showConsentDialog(pending.first);
+      final first = pending.first;
+      final id = first['id'] as String;
+      // If the app isn't on screen there's no dialog to see — raise an OS alert (once per request).
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed && _osNotifiedConsentIds.add(id)) {
+        unawaited(ReminderService.instance
+            .showConsentRequest(
+              appointmentId: id,
+              providerName: first['provider']?['name'] as String? ?? 'Your doctor',
+              patientName: first['member']?['name'] as String? ?? 'the patient',
+            )
+            .catchError((_) {}));
+      }
+      await _showConsentDialog(first);
     } catch (_) {
       // silent -- a transient network hiccup shouldn't interrupt the user with an error dialog
     }

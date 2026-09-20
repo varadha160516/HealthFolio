@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
+import 'services/reminder_service.dart';
 
 const _biometricPrefKey = 'careloop_biometric_enabled';
 const _pinHashPrefKey = 'careloop_pin_hash';
@@ -180,6 +181,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     await api.setToken(null);
+    // A shared device must not keep firing the signed-out account's appointment reminders. A lock()
+    // deliberately doesn't do this — the same person is still the account holder.
+    try {
+      await ReminderService.instance.clearAll();
+    } catch (_) {}
     session = null;
     locked = false;
     notifyListeners();

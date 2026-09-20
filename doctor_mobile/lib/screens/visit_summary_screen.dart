@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
 import '../theme.dart';
+import '../widgets/after_visit_summary_card.dart';
 import '../widgets/follow_up_timeline.dart';
 import 'prescription_view_screen.dart';
 
@@ -132,6 +133,8 @@ class _VisitSummaryScreenState extends State<VisitSummaryScreen> {
             _sectionLabel('Follow-up', Icons.event_repeat_outlined),
             FollowUpTimeline(after: notes!['follow_up_after'] as String, reason: notes['follow_up_reason'] as String?),
           ],
+          const SizedBox(height: 14),
+          AfterVisitSummaryCard(appointmentId: widget.appointmentId),
           const SizedBox(height: 20),
           if (prescription != null) ...[
             SizedBox(

@@ -3,10 +3,12 @@ import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../auth_provider.dart';
 import '../../theme.dart';
+import '../../utils/motion.dart';
 import '../../utils/specializations.dart';
 import '../../widgets/ledger.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/searchable_picker.dart';
+import 'after_visit_summary_screen.dart';
 
 enum _LocationStatus { idle, loading, denied, serviceOff, error, ready }
 
@@ -454,6 +456,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                                         TextButton(onPressed: () => _respond(a['id'], true), child: const Text('Approve')),
                                         TextButton(onPressed: () => _respond(a['id'], false), style: TextButton.styleFrom(foregroundColor: careloopDanger), child: const Text('Deny')),
                                       ])
+                                    : a['status'] == 'completed' && a['has_visit_summary'] == true
+                                        ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                            StatusPill.forMemberAppointmentStatus(a['status']),
+                                            TextButton.icon(
+                                              onPressed: () => Navigator.of(context).push(pushRoute(AfterVisitSummaryScreen(appointmentId: a['id'] as String))),
+                                              icon: const Icon(Icons.mark_email_read_outlined, size: 15),
+                                              label: const Text('Summary'),
+                                            ),
+                                          ])
                                     : a['status'] == 'scheduled'
                                         ? Row(mainAxisSize: MainAxisSize.min, children: [
                                             StatusPill.forMemberAppointmentStatus(a['status']),

@@ -215,9 +215,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   // 'Adequate') rather than anything the doctor entered, so those specifically defer to what was
   // actually said instead of protecting a placeholder. Nothing is saved automatically — the doctor
   // still reviews every field and presses Save themselves.
-  Future<void> _fillNotesFromScribe(String transcript) async {
+  Future<void> _fillNotesFromScribe(String transcript, String language) async {
     try {
-      final result = await _api.scribeTranscript(widget.appointmentId, transcript);
+      final result = await _api.scribeTranscript(widget.appointmentId, transcript, language: language);
       if (!mounted) return;
       setState(() {
         if (_chiefComplaint.text.trim().isEmpty && (result['chief_complaint'] as String?)?.isNotEmpty == true) {

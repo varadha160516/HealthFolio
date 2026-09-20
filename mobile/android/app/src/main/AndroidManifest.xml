@@ -15,6 +15,9 @@
     <!-- For voice input/output in AI Chat (speech_to_text + flutter_tts) — both run on-device,
          no cloud voice service or extra API key needed. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Appointment reminders (flutter_local_notifications): rescheduled after a reboot. Reminders
+         use inexact alarms, so no exact-alarm permission is needed. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="CareLoop"
         android:name="${applicationName}"
@@ -47,6 +50,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Without these two receivers a scheduled notification is registered but never shown. -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

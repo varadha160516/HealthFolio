@@ -267,6 +267,8 @@ class ApiClient {
   Future<List<dynamic>> searchProviders(String query) async => await _get('/providers/search?q=${Uri.encodeComponent(query)}');
   Future<List<dynamic>> getAppointments() async => await _get('/appointments');
   Future<Map<String, dynamic>> getAppointment(String id) async => await _get('/appointments/$id');
+  // The doctor-approved after-visit letter for a completed visit (only exists once they've sent it).
+  Future<Map<String, dynamic>> getPatientSummary(String appointmentId) async => await _get('/appointments/$appointmentId/patient-summary');
   Future<void> bookAppointment(Map<String, dynamic> payload) => _post('/appointments', payload);
 
   // --- Referrals ---

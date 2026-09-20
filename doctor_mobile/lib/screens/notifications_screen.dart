@@ -23,12 +23,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final api = context.read<AuthProvider>().api;
     final items = await api.getNotifications();
     if (mounted) setState(() => _items = items);
+    // Nothing ever cleared the unread state before — opening the feed is what "reads" it. The list
+    // above keeps showing this visit's unread dots; they're gone the next time it opens. The derived
+    // follow-up-due entries have no stored row to mark.
+    final unreadStored = items.cast<Map<String, dynamic>>().where((n) => n['read_at'] == null && !(n['id'] as String).startsWith('followup-'));
+    await Future.wait(unreadStored.map((n) => api.markNotificationRead(n['id'] as String).catchError((_) {})));
   }
 
   (IconData, Color, Color) _style(String type) => switch (type) {
         'lab_report_ready' => (Icons.science_rounded, docTeal, docTealBg),
         'follow_up_due' => (Icons.event_repeat_rounded, docAccent, docAccentLight),
         'appointment_cancelled' => (Icons.event_busy_rounded, docDanger, docDangerBg),
+        'consent_granted' => (Icons.verified_user_rounded, docSuccess, docSuccessBg),
+        'consent_denied' => (Icons.block_rounded, docDanger, docDangerBg),
+        'appointment_booked' => (Icons.event_available_rounded, docAccent, docAccentLight),
+        'appointment_rescheduled' => (Icons.update_rounded, docWarning, docWarningBg),
         _ => (Icons.notifications_rounded, docMuted, docSurfaceRaised),
       };
 
