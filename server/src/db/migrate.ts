@@ -413,6 +413,13 @@ export function runMigrations(db: Db) {
   ensureColumn(db, 'appointments', 'checked_in_at', 'TEXT');
   ensureColumn(db, 'appointments', 'is_walk_in', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'members', 'registered_by_provider_id', 'TEXT');
+  // Video consultations (routes/teleconsult.ts) and WhatsApp nudges (whatsapp.ts).
+  ensureColumn(db, 'providers', 'offers_video', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'appointments', 'consultation_mode', `TEXT NOT NULL DEFAULT 'in_person' CHECK (consultation_mode IN ('in_person','video'))`);
+  ensureColumn(db, 'appointments', 'video_room', 'TEXT');
+  ensureColumn(db, 'appointments', 'video_patient_joined_at', 'TEXT');
+  ensureColumn(db, 'appointments', 'video_doctor_joined_at', 'TEXT');
+  ensureColumn(db, 'members', 'whatsapp_opt_in', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 /** Best-effort backfill by display_name pattern, not a hand-curated per-row mapping — the

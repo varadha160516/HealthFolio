@@ -107,7 +107,7 @@ describe('front desk: the whole clinic, and nothing beyond it', () => {
     const r = await call('GET', `/frontdesk/queue?date=${DAY}`, w.deskToken);
     assert.ok(!JSON.stringify(r.body).includes('chest pain'));
     const a = r.body.doctors.find((d: any) => d.name === 'Dr. One').appointments[0];
-    assert.deepEqual(Object.keys(a).sort(), ['checked_in_at', 'datetime', 'id', 'is_follow_up', 'is_walk_in', 'patient', 'status', 'token_number']);
+    assert.deepEqual(Object.keys(a).sort(), ['checked_in_at', 'consultation_mode', 'datetime', 'id', 'is_follow_up', 'is_walk_in', 'patient', 'status', 'token_number', 'whatsapp_available']);
     assert.deepEqual(Object.keys(a.patient).sort(), ['age', 'id', 'name', 'sex']);
   });
 

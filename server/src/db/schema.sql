@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS members (
   -- HealthFolio account). Such a member sits in its own family with no login, so consent for their
   -- visits goes through the OTP path rather than an in-app prompt.
   registered_by_provider_id TEXT,
+  -- The patient (or the front desk, for someone registered at the counter) agreed to be nudged on
+  -- WhatsApp. Without this no wa.me link is ever issued for them (whatsapp.ts).
+  whatsapp_opt_in INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
@@ -177,7 +180,9 @@ CREATE TABLE IF NOT EXISTS providers (
   bank_account_name TEXT,
   bank_account_number TEXT,
   bank_ifsc TEXT,
-  bank_upi_id TEXT
+  bank_upi_id TEXT,
+  -- Takes video consultations: members may only book a video visit with a doctor who has this on.
+  offers_video INTEGER NOT NULL DEFAULT 0
 );
 
 -- Provider onboarding — a self-serve application, reviewed by a platform_admin before any
@@ -262,6 +267,12 @@ CREATE TABLE IF NOT EXISTS appointments (
   token_number INTEGER,
   checked_in_at TEXT,
   is_walk_in INTEGER NOT NULL DEFAULT 0,
+  -- Video consultations (teleconsult.ts). The room name is the only secret protecting the call, so it
+  -- is generated lazily, handed only to this visit's two parties, and stripped from every payload.
+  consultation_mode TEXT NOT NULL DEFAULT 'in_person' CHECK (consultation_mode IN ('in_person','video')),
+  video_room TEXT,
+  video_patient_joined_at TEXT,
+  video_doctor_joined_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

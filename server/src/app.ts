@@ -21,6 +21,7 @@ import { safetyNetRouter } from './routes/safetyNet.js';
 import { externalVisitsRouter } from './routes/externalVisits.js';
 import { afterVisitSummaryRouter } from './routes/afterVisitSummary.js';
 import { frontDeskRouter } from './routes/frontDesk.js';
+import { teleconsultRouter } from './routes/teleconsult.js';
 import { extractionModeLabel } from './pipeline/extract.js';
 
 export function buildApp() {
@@ -51,6 +52,7 @@ export function buildApp() {
   app.use('/api', externalVisitsRouter);
   app.use('/api', afterVisitSummaryRouter);
   app.use('/api', frontDeskRouter);
+  app.use('/api', teleconsultRouter);
 
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);

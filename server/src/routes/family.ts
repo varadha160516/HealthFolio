@@ -130,6 +130,17 @@ familyRouter.patch('/members/:id/profile', requireAuth, (req, res) => {
     params.relationship_to_primary = next;
   }
 
+  // Stored as 0/1 (node:sqlite won't bind a boolean), and switching it on needs a number to message.
+  if ('whatsapp_opt_in' in body) {
+    if (typeof body.whatsapp_opt_in !== 'boolean') return res.status(400).json({ error: 'whatsapp_opt_in must be true or false' });
+    if (body.whatsapp_opt_in) {
+      const phone = 'phone' in body ? body.phone : (db.prepare('SELECT phone FROM members WHERE id = ?').get(req.params.id) as { phone: string | null } | undefined)?.phone;
+      if (!String(phone ?? '').replace(/\D/g, '')) return res.status(400).json({ error: 'Add a mobile number first.' });
+    }
+    setParts.push('whatsapp_opt_in = @whatsapp_opt_in');
+    params.whatsapp_opt_in = body.whatsapp_opt_in ? 1 : 0;
+  }
+
   const updates = PROFILE_FIELDS.filter((f) => f in body);
   for (const f of updates) {
     setParts.push(`${f} = @${f}`);

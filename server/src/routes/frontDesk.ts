@@ -7,6 +7,7 @@ import { resolveAppointment } from './appointments.js';
 import { canTransition } from '../state-machine/appointment.js';
 import { assignToken, checkInAppointment } from '../queue.js';
 import { formatAppointmentWhen, memberName, notifyProvider } from '../notifications.js';
+import { buildWhatsAppLink, whatsappAvailable, WHATSAPP_KINDS, type WhatsAppKind } from '../whatsapp.js';
 
 export const frontDeskRouter = Router();
 
@@ -80,7 +81,7 @@ frontDeskRouter.get('/frontdesk/queue', (req, res) => {
   const doctors = db.prepare(`SELECT id, name, specialty FROM providers WHERE clinic_id = ? AND type = 'doctor' ORDER BY name`).all(clinic.id) as { id: string; name: string; specialty: string | null }[];
   const rows = db
     .prepare(
-      `SELECT a.id, a.provider_id, a.datetime, a.token_number, a.checked_in_at, a.is_walk_in, a.is_follow_up,
+      `SELECT a.id, a.provider_id, a.datetime, a.token_number, a.checked_in_at, a.is_walk_in, a.is_follow_up, a.consultation_mode,
               m.id AS member_id, m.name AS member_name, m.dob, m.sex
        FROM appointments a
        JOIN providers p ON p.id = a.provider_id
@@ -93,18 +94,23 @@ frontDeskRouter.get('/frontdesk/queue', (req, res) => {
   const lanes = doctors.map((d) => {
     const appointments = rows
       .filter((r) => r.provider_id === d.id)
-      .map((r) => ({
-        id: r.id,
-        datetime: r.datetime,
+      .map((r) => {
         // resolveAppointment lazily times out a stale consent request, so the desk never shows a
         // request as "still waiting" after it has actually expired.
-        status: resolveAppointment(r.id)!.status,
+        const status = resolveAppointment(r.id)!.status;
+        return {
+        id: r.id,
+        datetime: r.datetime,
+        status,
+        consultation_mode: r.consultation_mode as 'in_person' | 'video',
+        whatsapp_available: whatsappAvailable(r.member_id, status),
         token_number: r.token_number,
         checked_in_at: r.checked_in_at,
         is_walk_in: !!r.is_walk_in,
         is_follow_up: !!r.is_follow_up,
         patient: { id: r.member_id, name: r.member_name, age: ageFromDob(r.dob), sex: r.sex },
-      }));
+        };
+      });
     const counts: Record<Bucket, number> = { scheduled: 0, waiting: 0, in_progress: 0, completed: 0, closed: 0 };
     for (const a of appointments) counts[bucketOf(a.status)]++;
     return { id: d.id, name: d.name, specialty: d.specialty, counts, appointments };
@@ -119,6 +125,8 @@ frontDeskRouter.post('/frontdesk/appointments/:id/check-in', (req, res) => {
   const appt = clinicAppointment(req, res, clinic.id);
   if (!appt) return;
   if (!canTransition(appt.status, 'checked_in')) return res.status(409).json({ error: `Cannot check in from ${appt.status.replace(/_/g, ' ')}` });
+  // A video patient isn't at the counter — they check themselves in by joining the call.
+  if (appt.consultation_mode === 'video') return res.status(409).json({ error: 'This is a video visit — the patient checks in by joining the call.' });
 
   const token = checkInAppointment(appt);
   logAudit(req.session!.userId, req.session!.role, 'frontdesk_checked_in', appt.member_id, { appointmentId: appt.id, token });
@@ -138,6 +146,20 @@ frontDeskRouter.post('/frontdesk/appointments/:id/cancel', (req, res) => {
   logAudit(req.session!.userId, req.session!.role, 'frontdesk_cancelled', appt.member_id, { appointmentId: appt.id });
   notifyProvider(appt.provider_id, 'appointment_cancelled', 'Appointment cancelled', `Front desk cancelled ${memberName(appt.member_id)}'s ${formatAppointmentWhen(appt.datetime)} appointment.`, appt.id);
   res.json({ ok: true });
+});
+
+// A WhatsApp nudge link for any visit at this clinic (the doctor-side twin is in teleconsult.ts).
+frontDeskRouter.post('/frontdesk/appointments/:id/whatsapp-link', (req, res) => {
+  const clinic = clinicOf(req, res);
+  if (!clinic) return;
+  const appt = clinicAppointment(req, res, clinic.id);
+  if (!appt) return;
+  const kind = req.body?.kind as WhatsAppKind;
+  if (!WHATSAPP_KINDS.includes(kind)) return res.status(400).json({ error: 'Unknown message type.' });
+  const link = buildWhatsAppLink(appt, kind);
+  if (!link.ok) return res.status(link.status).json({ error: link.error });
+  logAudit(req.session!.userId, req.session!.role, 'whatsapp_link_issued', appt.member_id, { appointmentId: appt.id, kind });
+  res.json({ url: link.url });
 });
 
 // Exact-number lookup only, minimal fields back, every search audited (last 4 digits, never the
@@ -198,9 +220,9 @@ frontDeskRouter.post('/frontdesk/walk-ins', (req, res) => {
     memberId = uuid();
     db.prepare('INSERT INTO families (id, primary_member_id, created_at) VALUES (?, ?, ?)').run(familyId, memberId, now());
     db.prepare(
-      `INSERT INTO members (id, family_id, name, dob, sex, relationship_to_primary, login_credentials_ref, phone, registered_by_provider_id, created_at)
-       VALUES (?, ?, ?, ?, ?, 'self', NULL, ?, ?, ?)`
-    ).run(memberId, familyId, name, dob, sex ?? null, phone, req.session!.providerId, now());
+      `INSERT INTO members (id, family_id, name, dob, sex, relationship_to_primary, login_credentials_ref, phone, registered_by_provider_id, whatsapp_opt_in, created_at)
+       VALUES (?, ?, ?, ?, ?, 'self', NULL, ?, ?, ?, ?)`
+    ).run(memberId, familyId, name, dob, sex ?? null, phone, req.session!.providerId, new_patient.whatsapp_opt_in === true ? 1 : 0, now());
     patientName = name;
     registeredNew = true;
     logAudit(req.session!.userId, req.session!.role, 'frontdesk_patient_registered', memberId, { providerId: doctor.id });

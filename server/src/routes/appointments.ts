@@ -13,6 +13,7 @@ import { SPECIALIZATIONS } from '../specializations.js';
 import { runSafetyCheck } from '../pipeline/safetyNet.js';
 import { formatAppointmentWhen, memberName, notifyProvider } from '../notifications.js';
 import { checkInAppointment, queueInfo } from '../queue.js';
+import { whatsappAvailable } from '../whatsapp.js';
 import { adherenceForVisit } from '../pipeline/adherence.js';
 import { getConsentExplanation } from '../pipeline/consentExplainer.js';
 import { getPrevisitBrief } from '../pipeline/previsitPrep.js';
@@ -94,6 +95,17 @@ function checkProviderAvailable(providerId: string, datetimeIso: string, exclude
   return null;
 }
 
+// What anyone may see about a doctor. Deliberately NOT `p.*`: the providers row also carries the
+// doctor's bank account, IFSC, UPI id and signature image, which every logged-in patient could read
+// through the directory endpoints below before this was an explicit list.
+const PUBLIC_PROVIDER_COLUMNS =
+  'p.id, p.type, p.name, p.specialty, p.clinic_id, p.availability_note, p.default_fee, p.registration_number, p.qualifications, p.years_of_experience, p.gst_number, p.offers_video';
+
+function providerOffersVideo(providerId: string): boolean {
+  const row = db.prepare('SELECT offers_video FROM providers WHERE id = ?').get(providerId) as { offers_video: number } | undefined;
+  return row?.offers_video === 1;
+}
+
 export interface AppointmentRow {
   id: string;
   member_id: string;
@@ -107,6 +119,10 @@ export interface AppointmentRow {
   token_number: number | null;
   checked_in_at: string | null;
   is_walk_in: number;
+  consultation_mode: 'in_person' | 'video';
+  video_room: string | null;
+  video_patient_joined_at: string | null;
+  video_doctor_joined_at: string | null;
 }
 
 /** Lazily resolves consent_requested -> consent_expired once the window has passed, rather than
@@ -147,13 +163,32 @@ export function assertAppointmentVisible(req: any, res: any, appt: AppointmentRo
   return false;
 }
 
-function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean) {
+function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean, viewerIsProvider: boolean) {
   const grant = appt.consent_grant_id ? db.prepare('SELECT * FROM consent_grants WHERE id = ?').get(appt.consent_grant_id) : null;
-  const provider = db.prepare('SELECT p.*, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.id = ?').get(appt.provider_id);
+  const providerRow = db.prepare('SELECT p.*, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.id = ?').get(appt.provider_id) as Record<string, unknown> | undefined;
+  // Payout details never leave the server through an appointment. The signature is only for the
+  // doctor's own prescription view (a patient gets the issued prescription, not the raw image).
+  let provider: Record<string, unknown> | undefined;
+  if (providerRow) {
+    const { bank_account_name: _a, bank_account_number: _b, bank_ifsc: _c, bank_upi_id: _d, signature_base64, ...safe } = providerRow;
+    provider = viewerIsProvider ? { ...safe, signature_base64 } : safe;
+  }
   const member = db.prepare('SELECT id, name, dob, sex, blood_group FROM members WHERE id = ?').get(appt.member_id);
   const hasVisitSummary = !!db.prepare('SELECT 1 FROM visit_summaries WHERE appointment_id = ?').get(appt.id);
   // token + how many are still ahead, only while they're actually waiting (counts, never who).
-  const base: any = { ...appt, provider, member, consentGrant: grant, has_visit_summary: hasVisitSummary, queue: queueInfo(appt) };
+  // video_room is the only thing guarding a video call, so it never leaves the server in a listing —
+  // the two parties on the visit fetch a join link from POST /appointments/:id/video/join instead.
+  const { video_room: _room, ...publicAppt } = appt;
+  const base: any = {
+    ...publicAppt,
+    provider,
+    member,
+    consentGrant: grant,
+    has_visit_summary: hasVisitSummary,
+    queue: queueInfo(appt),
+    // Whether a WhatsApp nudge could be sent for this visit — a boolean only, never the number.
+    whatsapp_available: whatsappAvailable(appt.member_id, appt.status),
+  };
   if (includeUnlockedData && grantsDataAccess(appt.status)) {
     const summary = computeSummaryCard(appt.member_id);
     base.unlockedData = {
@@ -191,23 +226,28 @@ appointmentsRouter.get('/appointments', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Forbidden for this role' });
   }
   rows.forEach((r) => resolveAppointment(r.id));
-  res.json(rows.map((r) => serializeAppointment(resolveAppointment(r.id)!, false)));
+  const viewerIsProvider = session.role === 'provider_doctor' || session.role === 'provider_clinic_admin';
+  res.json(rows.map((r) => serializeAppointment(resolveAppointment(r.id)!, false, viewerIsProvider)));
 });
 
 appointmentsRouter.get('/appointments/:id', requireAuth, (req, res) => {
   const appt = resolveAppointment(req.params.id);
   if (!appt) return res.status(404).json({ error: 'Not found' });
   if (!assertAppointmentVisible(req, res, appt)) return;
-  res.json(serializeAppointment(appt, true));
+  const role = req.session!.role;
+  res.json(serializeAppointment(appt, true, role === 'provider_doctor' || role === 'provider_clinic_admin'));
 });
 
 // Booking (Section 8.1 step 1) — a sharing preference is a hint only, it grants no access.
 appointmentsRouter.post('/appointments', requireAuth, (req, res) => {
   const session = req.session!;
   if (session.role !== 'member_primary' && session.role !== 'member_dependent') return res.status(403).json({ error: 'Only members can book' });
-  const { member_id, provider_id, datetime, sharing_preference, reason_for_visit, referral_id } = req.body ?? {};
+  const { member_id, provider_id, datetime, sharing_preference, reason_for_visit, referral_id, consultation_mode } = req.body ?? {};
   if (!member_id || !provider_id || !datetime) return res.status(400).json({ error: 'member_id, provider_id, datetime are required' });
   if (!assertFamilyAccess(req, res, member_id)) return;
+  if (consultation_mode !== undefined && consultation_mode !== 'in_person' && consultation_mode !== 'video') return res.status(400).json({ error: "consultation_mode must be 'in_person' or 'video'" });
+  const mode: 'in_person' | 'video' = consultation_mode === 'video' ? 'video' : 'in_person';
+  if (mode === 'video' && !providerOffersVideo(provider_id)) return res.status(409).json({ error: "This doctor doesn't offer video consultations." });
   const availabilityError = checkProviderAvailable(provider_id, datetime);
   if (availabilityError) return res.status(409).json({ error: availabilityError });
 
@@ -220,14 +260,14 @@ appointmentsRouter.post('/appointments', requireAuth, (req, res) => {
 
   const id = uuid();
   db.prepare(
-    `INSERT INTO appointments (id, member_id, provider_id, datetime, status, sharing_preference, reason_for_visit, consent_grant_id, referral_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'scheduled', ?, ?, NULL, ?, ?, ?)`
-  ).run(id, member_id, provider_id, datetime, sharing_preference ?? null, reason_for_visit?.trim() || null, referral?.id ?? null, now(), now());
+    `INSERT INTO appointments (id, member_id, provider_id, datetime, status, sharing_preference, reason_for_visit, consent_grant_id, referral_id, consultation_mode, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'scheduled', ?, ?, NULL, ?, ?, ?, ?)`
+  ).run(id, member_id, provider_id, datetime, sharing_preference ?? null, reason_for_visit?.trim() || null, referral?.id ?? null, mode, now(), now());
 
   if (referral) {
     db.prepare(`UPDATE referrals SET status = 'booked', resulting_appointment_id = ?, updated_at = ? WHERE id = ?`).run(id, now(), referral.id);
   }
-  notifyProvider(provider_id, 'appointment_booked', 'New appointment', `${memberName(member_id)} booked ${formatAppointmentWhen(datetime)}.`, id);
+  notifyProvider(provider_id, 'appointment_booked', 'New appointment', `${memberName(member_id)} booked ${mode === 'video' ? 'a video consultation ' : ''}${formatAppointmentWhen(datetime)}.`, id);
   res.status(201).json({ id });
 });
 
@@ -242,13 +282,22 @@ appointmentsRouter.patch('/appointments/:id', requireAuth, (req, res) => {
   if (!assertAppointmentVisible(req, res, appt)) return;
   if (appt.status !== 'scheduled') return res.status(409).json({ error: `Cannot edit an appointment once it's ${appt.status.replace(/_/g, ' ')}` });
 
-  const { datetime, provider_id, sharing_preference, reason_for_visit } = req.body ?? {};
+  const { datetime, provider_id, sharing_preference, reason_for_visit, consultation_mode } = req.body ?? {};
   const updates: Record<string, any> = {};
+  if (consultation_mode !== undefined) {
+    if (consultation_mode !== 'in_person' && consultation_mode !== 'video') return res.status(400).json({ error: "consultation_mode must be 'in_person' or 'video'" });
+    updates.consultation_mode = consultation_mode;
+  }
   if (datetime) updates.datetime = datetime;
   if (provider_id) updates.provider_id = provider_id;
   if (sharing_preference) updates.sharing_preference = sharing_preference;
   if (reason_for_visit !== undefined) updates.reason_for_visit = reason_for_visit?.trim() || null;
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No editable fields in request body' });
+
+  // Video only with a doctor who takes it — checked against whoever the visit will end up with.
+  const finalMode = updates.consultation_mode ?? appt.consultation_mode;
+  const finalProvider = updates.provider_id ?? appt.provider_id;
+  if (finalMode === 'video' && !providerOffersVideo(finalProvider)) return res.status(409).json({ error: "This doctor doesn't offer video consultations." });
 
   if (updates.datetime || updates.provider_id) {
     const availabilityError = checkProviderAvailable(updates.provider_id ?? appt.provider_id, updates.datetime ?? appt.datetime, appt.id);
@@ -321,6 +370,7 @@ appointmentsRouter.post('/appointments/:id/request-consent', requireAuth, requir
   if (!assertAppointmentVisible(req, res, appt)) return;
   if (!canTransition(appt.status, 'consent_requested')) return res.status(409).json({ error: `Cannot request consent from ${appt.status}` });
   const { method, scope } = req.body ?? {};
+  if (method === 'otp' && appt.consultation_mode === 'video') return res.status(400).json({ error: 'A video visit needs the patient to approve in their app — the code fallback is for patients who are in the room.' });
   const result = issueConsentRequest(appt, method === 'otp' ? 'otp' : 'in_app', scope || appt.sharing_preference || 'full_history');
   logAudit(req.session!.userId, req.session!.role, 'consent_requested', appt.member_id, { appointmentId: appt.id, method: method || 'in_app' });
   // otp is only ever returned to the requesting provider's own console (read aloud by the patient in person) —
@@ -335,6 +385,7 @@ appointmentsRouter.post('/appointments/:id/resend-consent', requireAuth, require
   if (!assertAppointmentVisible(req, res, appt)) return;
   if (!canTransition(appt.status, 'consent_requested')) return res.status(409).json({ error: `Cannot resend from ${appt.status}` });
   const { method, scope } = req.body ?? {};
+  if (method === 'otp' && appt.consultation_mode === 'video') return res.status(400).json({ error: 'A video visit needs the patient to approve in their app — the code fallback is for patients who are in the room.' });
   const result = issueConsentRequest(appt, method === 'otp' ? 'otp' : 'in_app', scope || appt.sharing_preference || 'full_history');
   logAudit(req.session!.userId, req.session!.role, 'consent_resent', appt.member_id, { appointmentId: appt.id });
   res.json({ ok: true, expiresAt: result.expiresAt, otp: result.otp });
@@ -570,7 +621,7 @@ appointmentsRouter.post('/appointments/:id/complete', requireAuth, requireRole('
 });
 
 appointmentsRouter.get('/providers', requireAuth, (_req, res) => {
-  res.json(db.prepare('SELECT p.*, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.type = ?').all('doctor'));
+  res.json(db.prepare(`SELECT ${PUBLIC_PROVIDER_COLUMNS}, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.type = ?`).all('doctor'));
 });
 
 appointmentsRouter.get('/specializations', requireAuth, (_req, res) => {
@@ -585,7 +636,7 @@ appointmentsRouter.get('/providers/search', requireAuth, (req, res) => {
   if (!q || q.length < 2) return res.json([]);
   const rows = db
     .prepare(
-      `SELECT p.*, c.name AS clinic_name, c.city FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id
+      `SELECT ${PUBLIC_PROVIDER_COLUMNS}, c.name AS clinic_name, c.city FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id
        WHERE p.type = 'doctor' AND p.name LIKE ? ORDER BY p.name LIMIT 20`
     )
     .all(`%${q}%`);
@@ -608,7 +659,7 @@ appointmentsRouter.get('/providers/nearby', requireAuth, (req, res) => {
 
   const rows = db
     .prepare(
-      `SELECT p.*, c.name AS clinic_name, c.address, c.city, c.latitude, c.longitude
+      `SELECT ${PUBLIC_PROVIDER_COLUMNS}, c.name AS clinic_name, c.address, c.city, c.latitude, c.longitude
        FROM providers p JOIN clinics c ON c.id = p.clinic_id
        WHERE p.type = 'doctor' AND p.specialty = ? AND c.latitude IS NOT NULL AND c.longitude IS NOT NULL`
     )
@@ -637,7 +688,7 @@ appointmentsRouter.get('/members/:id/preferred-providers', requireAuth, (req, re
   if (!assertFamilyAccess(req, res, req.params.id)) return;
   const rows = db
     .prepare(
-      `SELECT pp.id AS preference_id, p.*, c.name AS clinic_name, c.address, c.city, c.latitude, c.longitude
+      `SELECT pp.id AS preference_id, ${PUBLIC_PROVIDER_COLUMNS}, c.name AS clinic_name, c.address, c.city, c.latitude, c.longitude
        FROM preferred_providers pp
        JOIN providers p ON p.id = pp.provider_id
        LEFT JOIN clinics c ON c.id = p.clinic_id

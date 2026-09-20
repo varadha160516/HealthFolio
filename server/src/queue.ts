@@ -20,8 +20,11 @@ export function assignToken(providerId: string, datetime: string): number {
 
 /** scheduled -> checked_in. Callers check canTransition first. Keeps an existing token if the row
  * already has one (e.g. a walk-in row that was created checked in), so a token never changes. */
-export function checkInAppointment(appt: { id: string; provider_id: string; datetime: string; token_number?: number | null }): number {
-  const token = appt.token_number ?? assignToken(appt.provider_id, appt.datetime);
+export function checkInAppointment(appt: { id: string; provider_id: string; datetime: string; token_number?: number | null; consultation_mode?: string | null }): number | null {
+  // A video visit has no counter to queue at, so it never takes a token (and never shifts anyone
+  // else's place in the physical line). It is still "checked in": that's what lets the doctor ask
+  // for access.
+  const token = appt.consultation_mode === 'video' ? null : appt.token_number ?? assignToken(appt.provider_id, appt.datetime);
   const ts = now();
   db.prepare(`UPDATE appointments SET status = 'checked_in', token_number = ?, checked_in_at = COALESCE(checked_in_at, ?), updated_at = ? WHERE id = ?`).run(token, ts, ts, appt.id);
   return token;

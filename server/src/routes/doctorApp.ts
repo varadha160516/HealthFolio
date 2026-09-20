@@ -383,7 +383,7 @@ const PROVIDER_TEXT_FIELDS = [
 doctorAppRouter.get('/providers/me/profile', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
   const provider = db
     .prepare(
-      `SELECT id, name, specialty, clinic_id, availability_note, default_fee, years_of_experience, ${PROVIDER_TEXT_FIELDS.join(', ')}
+      `SELECT id, name, specialty, clinic_id, availability_note, default_fee, years_of_experience, offers_video, ${PROVIDER_TEXT_FIELDS.join(', ')}
        FROM providers WHERE id = ?`
     )
     .get(req.session!.providerId);
@@ -403,6 +403,10 @@ doctorAppRouter.patch('/providers/me/profile', requireAuth, requireRole('provide
     const years = Number(years_of_experience);
     if (!Number.isInteger(years) || years < 0) return res.status(400).json({ error: 'years_of_experience must be a non-negative whole number' });
     db.prepare('UPDATE providers SET years_of_experience = ? WHERE id = ?').run(years, req.session!.providerId);
+  }
+  if (body.offers_video !== undefined) {
+    if (typeof body.offers_video !== 'boolean') return res.status(400).json({ error: 'offers_video must be true or false' });
+    db.prepare('UPDATE providers SET offers_video = ? WHERE id = ?').run(body.offers_video ? 1 : 0, req.session!.providerId);
   }
   for (const field of PROVIDER_TEXT_FIELDS) {
     if (body[field] !== undefined) {
