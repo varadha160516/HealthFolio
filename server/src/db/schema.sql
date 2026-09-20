@@ -610,14 +610,16 @@ CREATE TABLE IF NOT EXISTS consultation_notes (
   updated_at TEXT NOT NULL
 );
 
--- Doctor App notifications — a small real feed (not push, polled), populated by real server-side
--- events (a member cancelling, a doctor-ordered lab report arriving), not simulated content.
+-- Doctor App notifications — a small real feed (polled by the app; no push transport yet),
+-- populated by real server-side events (a member booking/rescheduling/cancelling, consent being
+-- granted or denied, a doctor-ordered lab report arriving), not simulated content. Every insert
+-- goes through notifyProvider() in notifications.ts — the one place a push transport would hook in.
 -- "Follow-up due today" is intentionally NOT stored here — it's derived live from today's
 -- appointments in the notifications route, so it can never go stale or be double-inserted.
 CREATE TABLE IF NOT EXISTS provider_notifications (
   id TEXT PRIMARY KEY,
   provider_id TEXT NOT NULL REFERENCES providers(id),
-  type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled')),
+  type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled')),
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   related_appointment_id TEXT REFERENCES appointments(id),
@@ -626,6 +628,25 @@ CREATE TABLE IF NOT EXISTS provider_notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_provider_notifications_provider ON provider_notifications (provider_id, created_at DESC);
+
+-- The doctor-approved after-visit letter a patient sees in HealthFolio (afterVisitSummary.ts).
+-- english_text is the source of truth the doctor actually read and edited; translated_text is a
+-- machine translation OF that exact text (null when language is English), always shown with the
+-- English original available beside it. One row per appointment, only ever written by the doctor
+-- explicitly sending it — drafts are never stored, so a patient can never see an unreviewed one.
+CREATE TABLE IF NOT EXISTS visit_summaries (
+  appointment_id TEXT PRIMARY KEY REFERENCES appointments(id),
+  member_id TEXT NOT NULL REFERENCES members(id),
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  english_text TEXT NOT NULL,
+  language TEXT NOT NULL DEFAULT 'English',
+  translated_text TEXT,
+  status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent')),
+  sent_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_visit_summaries_member ON visit_summaries (member_id, sent_at DESC);
 
 -- Created automatically when a doctor completes a visit with a fee entered -- one invoice per
 -- appointment. Payment is a demo/simulated flow (no real payment gateway): a member picks a

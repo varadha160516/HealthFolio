@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { assertFamilyAccess } from './family.js';
+import { notifyProvider } from '../notifications.js';
 
 export const labTestsRouter = Router();
 
@@ -117,9 +118,7 @@ labTestsRouter.patch('/lab-test-bookings/:id', requireAuth, (req, res) => {
   if (status === 'report_ready' && booking.ordered_by_provider_id) {
     const testNames = JSON.parse(booking.test_names).join(', ');
     const member = booking.member_id ? (db.prepare('SELECT name FROM members WHERE id = ?').get(booking.member_id) as { name: string } | undefined) : undefined;
-    db.prepare(
-      `INSERT INTO provider_notifications (id, provider_id, type, title, body, related_appointment_id, created_at) VALUES (?, ?, 'lab_report_ready', ?, ?, ?, ?)`
-    ).run(uuid(), booking.ordered_by_provider_id, 'Lab report available', `${member?.name ?? booking.guest_name ?? 'The patient'}'s ${testNames} report is available.`, booking.appointment_id ?? null, now());
+    notifyProvider(booking.ordered_by_provider_id, 'lab_report_ready', 'Lab report available', `${member?.name ?? booking.guest_name ?? 'The patient'}'s ${testNames} report is available.`, booking.appointment_id ?? null);
   }
 
   res.json({ ok: true });

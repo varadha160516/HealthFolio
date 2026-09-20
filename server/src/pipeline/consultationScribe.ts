@@ -106,7 +106,15 @@ function parseResult(text: string): ConsultationNoteExtraction {
   };
 }
 
-export async function structureConsultationTranscript(transcript: string): Promise<ConsultationNoteExtraction> {
+// The transcript can be in any language the on-device recognizer was set to (see
+// ambient_scribe_card.dart) — but consultation_notes, the safety net, pre-visit briefs and every
+// other consumer of this record are English, so the structured output always is too.
+function languageInstruction(language: string): string {
+  if (language === 'English') return '';
+  return `\n\nThe transcript is in ${language} (it may mix in English medical terms and drug names). Understand it in ${language}, but write EVERY extracted field in English — translate faithfully, keep drug names and numbers exactly as spoken, and do not add anything that wasn't said.`;
+}
+
+export async function structureConsultationTranscript(transcript: string, language: string = 'English'): Promise<ConsultationNoteExtraction> {
   if (!transcript.trim()) return EMPTY_RESULT;
   if (!process.env.ANTHROPIC_API_KEY) {
     // Dev/demo fallback with no live API key — hands the raw transcript back as the chief
@@ -117,7 +125,7 @@ export async function structureConsultationTranscript(transcript: string): Promi
   const resp = await getClient().messages.create({
     model,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: SYSTEM_PROMPT + languageInstruction(language),
     messages: [{ role: 'user', content: `TRANSCRIPT:\n${transcript}` }],
   });
   const text = resp.content

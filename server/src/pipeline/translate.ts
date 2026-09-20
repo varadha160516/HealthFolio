@@ -10,6 +10,29 @@ function getClient(): Anthropic {
   return client;
 }
 
+/** Translates a doctor-approved English document into the patient's language. Machine translation
+ * of clinical content, so the prompt is strict about the things that must never drift — medicine
+ * names, numbers, doses, timings — and never adds or drops content. Callers always keep (and show)
+ * the English original alongside it. */
+export async function translateFromEnglish(text: string, targetLanguage: string): Promise<string> {
+  const resp = await getClient().messages.create({
+    model,
+    max_tokens: 2048,
+    system: `You translate a doctor's after-visit letter to a patient from English into ${targetLanguage}, in simple, warm, everyday language a non-medical reader understands.
+Non-negotiable:
+- Translate ONLY what is written. Never add, remove, soften, or reorder any medical information, advice, or instruction.
+- Keep every medicine name, strength, number, dose, duration, date and time EXACTLY as written (numerals stay as digits; medicine names may be written in ${targetLanguage} script only if that is how they are commonly written, otherwise keep them in Latin letters).
+- Keep the same line breaks, headings and bullet structure.
+Reply with ONLY the translated letter — no preamble, no notes, no quotation marks.`,
+    messages: [{ role: 'user', content: text }],
+  });
+  return resp.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n')
+    .trim();
+}
+
 /** Translates spoken/typed text to plain English. No mock fallback (unlike chatAssistant's
  * mockReply) — if there's no API key configured, translation just isn't available; the caller
  * decides what to show for that. */

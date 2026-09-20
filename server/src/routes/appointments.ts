@@ -11,6 +11,7 @@ import { logAudit, getAuditLog } from '../audit.js';
 import { computeSummaryCard } from '../summary.js';
 import { SPECIALIZATIONS } from '../specializations.js';
 import { runSafetyCheck } from '../pipeline/safetyNet.js';
+import { formatAppointmentWhen, memberName, notifyProvider } from '../notifications.js';
 import { getConsentExplanation } from '../pipeline/consentExplainer.js';
 import { getPrevisitBrief } from '../pipeline/previsitPrep.js';
 import { checkPrescriptionDraft } from '../pipeline/medicationReconciliation.js';
@@ -145,7 +146,8 @@ function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean
   const grant = appt.consent_grant_id ? db.prepare('SELECT * FROM consent_grants WHERE id = ?').get(appt.consent_grant_id) : null;
   const provider = db.prepare('SELECT p.*, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.id = ?').get(appt.provider_id);
   const member = db.prepare('SELECT id, name, dob, sex, blood_group FROM members WHERE id = ?').get(appt.member_id);
-  const base: any = { ...appt, provider, member, consentGrant: grant };
+  const hasVisitSummary = !!db.prepare('SELECT 1 FROM visit_summaries WHERE appointment_id = ?').get(appt.id);
+  const base: any = { ...appt, provider, member, consentGrant: grant, has_visit_summary: hasVisitSummary };
   if (includeUnlockedData && grantsDataAccess(appt.status)) {
     const summary = computeSummaryCard(appt.member_id);
     base.unlockedData = {
@@ -216,6 +218,7 @@ appointmentsRouter.post('/appointments', requireAuth, (req, res) => {
   if (referral) {
     db.prepare(`UPDATE referrals SET status = 'booked', resulting_appointment_id = ?, updated_at = ? WHERE id = ?`).run(id, now(), referral.id);
   }
+  notifyProvider(provider_id, 'appointment_booked', 'New appointment', `${memberName(member_id)} booked ${formatAppointmentWhen(datetime)}.`, id);
   res.status(201).json({ id });
 });
 
@@ -246,6 +249,15 @@ appointmentsRouter.patch('/appointments/:id', requireAuth, (req, res) => {
   const setClause = Object.keys(updates).map((f) => `${f} = @${f}`).join(', ');
   db.prepare(`UPDATE appointments SET ${setClause}, updated_at = @updated_at WHERE id = @id`).run({ ...updates, updated_at: now(), id: appt.id });
   logAudit(session.userId, session.role, 'appointment_edited', appt.member_id, { appointmentId: appt.id, fields: Object.keys(updates) });
+
+  const patient = memberName(appt.member_id);
+  if (updates.provider_id && updates.provider_id !== appt.provider_id) {
+    // Moved to a different doctor: the old one loses the visit, the new one gains it.
+    notifyProvider(appt.provider_id, 'appointment_cancelled', 'Appointment moved', `${patient} moved the ${formatAppointmentWhen(appt.datetime)} appointment to another doctor.`, appt.id);
+    notifyProvider(updates.provider_id, 'appointment_booked', 'New appointment', `${patient} booked ${formatAppointmentWhen(updates.datetime ?? appt.datetime)}.`, appt.id);
+  } else if (updates.datetime && updates.datetime !== appt.datetime) {
+    notifyProvider(appt.provider_id, 'appointment_rescheduled', 'Appointment rescheduled', `${patient} moved their visit from ${formatAppointmentWhen(appt.datetime)} to ${formatAppointmentWhen(updates.datetime)}.`, appt.id);
+  }
   res.json({ ok: true });
 });
 
@@ -264,11 +276,7 @@ appointmentsRouter.post('/appointments/:id/cancel', requireAuth, (req, res) => {
 
   // Doctor App notification — real-time-enough (polled), not simulated: the provider finds out a
   // patient called off their visit without having to notice it in the appointment list.
-  const member = db.prepare('SELECT name FROM members WHERE id = ?').get(appt.member_id) as { name: string } | undefined;
-  const time = new Date(appt.datetime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  db.prepare(
-    `INSERT INTO provider_notifications (id, provider_id, type, title, body, related_appointment_id, created_at) VALUES (?, ?, 'appointment_cancelled', ?, ?, ?, ?)`
-  ).run(uuid(), appt.provider_id, 'Appointment cancelled', `${member?.name ?? 'A patient'} cancelled the ${time} appointment.`, appt.id, now());
+  notifyProvider(appt.provider_id, 'appointment_cancelled', 'Appointment cancelled', `${memberName(appt.member_id)} cancelled the ${formatAppointmentWhen(appt.datetime)} appointment.`, appt.id);
 
   res.json({ ok: true });
 });
@@ -344,6 +352,16 @@ appointmentsRouter.post('/appointments/:id/respond-consent', requireAuth, (req, 
   }
   // Written from the same consent-grant event on both sides — never two independent writes that could drift (Section 8.1 step 4).
   logAudit(session.userId, session.role, approve ? 'consent_granted' : 'consent_denied', appt.member_id, { appointmentId: appt.id });
+  // The doctor is usually mid-something else once they've sent the request — this is the "patient
+  // is ready, start the visit" (or "patient declined") signal without having to keep the
+  // appointment screen open.
+  notifyProvider(
+    appt.provider_id,
+    approve ? 'consent_granted' : 'consent_denied',
+    approve ? 'Patient is ready' : 'Access declined',
+    approve ? `${memberName(appt.member_id)} approved access — you can start the visit.` : `${memberName(appt.member_id)} declined access for this visit.`,
+    appt.id
+  );
   res.json({ ok: true, status: nextStatus });
 });
 

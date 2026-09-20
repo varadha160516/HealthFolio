@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { resolveAppointment, assertAppointmentVisible } from './appointments.js';
 import { grantsDataAccess } from '../state-machine/appointment.js';
 import { structureConsultationTranscript } from '../pipeline/consultationScribe.js';
+import { parseLanguage } from '../languages.js';
 
 export const doctorAppRouter = Router();
 
@@ -123,7 +124,7 @@ doctorAppRouter.post('/appointments/:id/scribe', requireAuth, requireRole('provi
   const transcript = (req.body?.transcript as string | undefined) ?? '';
   if (!transcript.trim()) return res.status(400).json({ error: 'transcript is required' });
   try {
-    const result = await structureConsultationTranscript(transcript);
+    const result = await structureConsultationTranscript(transcript, parseLanguage(req.body?.language));
     res.json(result);
   } catch (e) {
     console.error(`Ambient scribe structuring failed for appointment ${appt.id}:`, e);
@@ -251,7 +252,7 @@ doctorAppRouter.post('/appointments/:id/schedule-follow-up', requireAuth, requir
 // re-browsing the patient's broader history, so it deliberately sits outside the grantsDataAccess
 // gate (which stays enforced everywhere above). ---
 
-function buildVisitSummary(appointmentId: string) {
+export function buildVisitSummary(appointmentId: string) {
   const prescription = db.prepare('SELECT * FROM prescriptions WHERE appointment_id = ? ORDER BY issued_at DESC LIMIT 1').get(appointmentId) as any;
   const lineItems = prescription ? db.prepare('SELECT * FROM prescription_line_items WHERE prescription_id = ?').all(prescription.id) : [];
   const notes = serializeNotes(db.prepare('SELECT * FROM consultation_notes WHERE appointment_id = ?').get(appointmentId));

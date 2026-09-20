@@ -11,6 +11,7 @@ export function runMigrations(db: Db) {
   migratePrescriptionsForMemberUploads(db);
   migrateAppointmentsAllowCancelled(db);
   migrateLabTestBookingsAllowCancelled(db);
+  migrateProviderNotificationsMoreTypes(db);
 
   // Profile tab fields — kept on `members` rather than duplicated anywhere else, since these are
   // stable facts about the person, not derived from uploads.
@@ -216,7 +217,7 @@ export function runMigrations(db: Db) {
     CREATE TABLE IF NOT EXISTS provider_notifications (
       id TEXT PRIMARY KEY,
       provider_id TEXT NOT NULL REFERENCES providers(id),
-      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled')),
+      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled')),
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       related_appointment_id TEXT REFERENCES appointments(id),
@@ -550,6 +551,35 @@ function migrateAppointmentsAllowCancelled(db: Db) {
   `);
   db.exec('PRAGMA foreign_keys = ON');
   console.log("migrated: appointments.status CHECK constraint now allows 'cancelled'");
+}
+
+/** Same rebuild pattern again, for provider_notifications.type — the doctor's feed grows beyond
+ * cancellations/lab reports to consent, booking and reschedule events (see notifications.ts). */
+function migrateProviderNotificationsMoreTypes(db: Db) {
+  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'provider_notifications'`).get() as { sql: string } | undefined;
+  if (!row) return; // table doesn't exist yet — schema.sql will create it correctly
+  if (row.sql.includes("'consent_granted'")) return; // already migrated
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE provider_notifications_migrated (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES providers(id),
+      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled')),
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      related_appointment_id TEXT REFERENCES appointments(id),
+      created_at TEXT NOT NULL,
+      read_at TEXT
+    );
+    INSERT INTO provider_notifications_migrated (id, provider_id, type, title, body, related_appointment_id, created_at, read_at)
+      SELECT id, provider_id, type, title, body, related_appointment_id, created_at, read_at FROM provider_notifications;
+    DROP TABLE provider_notifications;
+    ALTER TABLE provider_notifications_migrated RENAME TO provider_notifications;
+    CREATE INDEX IF NOT EXISTS idx_provider_notifications_provider ON provider_notifications (provider_id, created_at DESC);
+  `);
+  db.exec('PRAGMA foreign_keys = ON');
+  console.log('migrated: provider_notifications.type CHECK constraint now allows consent/booking/reschedule events');
 }
 
 /** Same rebuild pattern as migrateAppointmentsAllowCancelled, for the lab_test_bookings CHECK
