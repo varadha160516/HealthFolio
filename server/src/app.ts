@@ -20,6 +20,7 @@ import { providerApplicationsRouter } from './routes/providerApplications.js';
 import { safetyNetRouter } from './routes/safetyNet.js';
 import { externalVisitsRouter } from './routes/externalVisits.js';
 import { afterVisitSummaryRouter } from './routes/afterVisitSummary.js';
+import { frontDeskRouter } from './routes/frontDesk.js';
 import { extractionModeLabel } from './pipeline/extract.js';
 
 export function buildApp() {
@@ -49,6 +50,7 @@ export function buildApp() {
   app.use('/api', safetyNetRouter);
   app.use('/api', externalVisitsRouter);
   app.use('/api', afterVisitSummaryRouter);
+  app.use('/api', frontDeskRouter);
 
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);

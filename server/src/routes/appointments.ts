@@ -12,6 +12,8 @@ import { computeSummaryCard } from '../summary.js';
 import { SPECIALIZATIONS } from '../specializations.js';
 import { runSafetyCheck } from '../pipeline/safetyNet.js';
 import { formatAppointmentWhen, memberName, notifyProvider } from '../notifications.js';
+import { checkInAppointment, queueInfo } from '../queue.js';
+import { adherenceForVisit } from '../pipeline/adherence.js';
 import { getConsentExplanation } from '../pipeline/consentExplainer.js';
 import { getPrevisitBrief } from '../pipeline/previsitPrep.js';
 import { checkPrescriptionDraft } from '../pipeline/medicationReconciliation.js';
@@ -102,6 +104,9 @@ export interface AppointmentRow {
   reason_for_visit: string | null;
   consent_grant_id: string | null;
   referral_id: string | null;
+  token_number: number | null;
+  checked_in_at: string | null;
+  is_walk_in: number;
 }
 
 /** Lazily resolves consent_requested -> consent_expired once the window has passed, rather than
@@ -147,7 +152,8 @@ function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean
   const provider = db.prepare('SELECT p.*, c.name AS clinic_name FROM providers p LEFT JOIN clinics c ON c.id = p.clinic_id WHERE p.id = ?').get(appt.provider_id);
   const member = db.prepare('SELECT id, name, dob, sex, blood_group FROM members WHERE id = ?').get(appt.member_id);
   const hasVisitSummary = !!db.prepare('SELECT 1 FROM visit_summaries WHERE appointment_id = ?').get(appt.id);
-  const base: any = { ...appt, provider, member, consentGrant: grant, has_visit_summary: hasVisitSummary };
+  // token + how many are still ahead, only while they're actually waiting (counts, never who).
+  const base: any = { ...appt, provider, member, consentGrant: grant, has_visit_summary: hasVisitSummary, queue: queueInfo(appt) };
   if (includeUnlockedData && grantsDataAccess(appt.status)) {
     const summary = computeSummaryCard(appt.member_id);
     base.unlockedData = {
@@ -164,6 +170,9 @@ function serializeAppointment(appt: AppointmentRow, includeUnlockedData: boolean
       // data. Only 'open' flags — dismiss/discussed stays a member/family decision, never a
       // doctor's, so no resolution endpoint is exposed on this side.
       safetyFlags: runSafetyCheck(appt.member_id).open,
+      // What the patient logged in HealthFolio against their medicines, last 7 completed days.
+      // Same gate as everything else in here: only while this visit is unlocked.
+      adherence: adherenceForVisit(appt.member_id, appt.provider_id),
     };
   }
   return base;
@@ -287,9 +296,9 @@ appointmentsRouter.post('/appointments/:id/check-in', requireAuth, requireRole('
   if (!appt) return res.status(404).json({ error: 'Not found' });
   if (!assertAppointmentVisible(req, res, appt)) return;
   if (!canTransition(appt.status, 'checked_in')) return res.status(409).json({ error: `Cannot check in from ${appt.status}` });
-  db.prepare(`UPDATE appointments SET status = 'checked_in', updated_at = ? WHERE id = ?`).run(now(), appt.id);
-  logAudit(req.session!.userId, req.session!.role, 'checked_in', appt.member_id, { appointmentId: appt.id });
-  res.json({ ok: true });
+  const token = checkInAppointment(appt);
+  logAudit(req.session!.userId, req.session!.role, 'checked_in', appt.member_id, { appointmentId: appt.id, token });
+  res.json({ ok: true, token });
 });
 
 function issueConsentRequest(appt: AppointmentRow, method: 'in_app' | 'otp', scope: string) {

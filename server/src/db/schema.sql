@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS members (
   organ_donor_status TEXT, -- 'yes' | 'no' | 'unknown' | null
   primary_physician_name TEXT,
   primary_physician_phone TEXT,
+  -- Set only for a patient a clinic's front desk registered at the counter (a walk-in with no
+  -- HealthFolio account). Such a member sits in its own family with no login, so consent for their
+  -- visits goes through the OTP path rather than an in-app prompt.
+  registered_by_provider_id TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -252,6 +256,12 @@ CREATE TABLE IF NOT EXISTS appointments (
   -- below) — lets the pre-visit prep brief pull in the referring doctor's reason/notes the moment
   -- this specific visit's own consent unlocks, same fail-closed gate as everything else here.
   referral_id TEXT REFERENCES referrals(id),
+  -- Clinic queue (queue.ts). token_number is assigned once, at check-in, and is sequential per
+  -- provider per calendar day (the day is read straight from the datetime string, like everywhere
+  -- else here). is_walk_in marks a visit the front desk created on the spot.
+  token_number INTEGER,
+  checked_in_at TEXT,
+  is_walk_in INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -619,7 +629,7 @@ CREATE TABLE IF NOT EXISTS consultation_notes (
 CREATE TABLE IF NOT EXISTS provider_notifications (
   id TEXT PRIMARY KEY,
   provider_id TEXT NOT NULL REFERENCES providers(id),
-  type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled')),
+  type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled','patient_checked_in')),
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   related_appointment_id TEXT REFERENCES appointments(id),

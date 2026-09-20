@@ -217,7 +217,7 @@ export function runMigrations(db: Db) {
     CREATE TABLE IF NOT EXISTS provider_notifications (
       id TEXT PRIMARY KEY,
       provider_id TEXT NOT NULL REFERENCES providers(id),
-      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled')),
+      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled','patient_checked_in')),
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       related_appointment_id TEXT REFERENCES appointments(id),
@@ -409,6 +409,10 @@ export function runMigrations(db: Db) {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_referrals_member ON referrals (member_id, status, created_at DESC)');
   ensureColumn(db, 'appointments', 'referral_id', 'TEXT REFERENCES referrals(id)');
+  ensureColumn(db, 'appointments', 'token_number', 'INTEGER');
+  ensureColumn(db, 'appointments', 'checked_in_at', 'TEXT');
+  ensureColumn(db, 'appointments', 'is_walk_in', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'members', 'registered_by_provider_id', 'TEXT');
 }
 
 /** Best-effort backfill by display_name pattern, not a hand-curated per-row mapping — the
@@ -558,14 +562,14 @@ function migrateAppointmentsAllowCancelled(db: Db) {
 function migrateProviderNotificationsMoreTypes(db: Db) {
   const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'provider_notifications'`).get() as { sql: string } | undefined;
   if (!row) return; // table doesn't exist yet — schema.sql will create it correctly
-  if (row.sql.includes("'consent_granted'")) return; // already migrated
+  if (row.sql.includes("'patient_checked_in'")) return; // already migrated
 
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec(`
     CREATE TABLE provider_notifications_migrated (
       id TEXT PRIMARY KEY,
       provider_id TEXT NOT NULL REFERENCES providers(id),
-      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled')),
+      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled','patient_checked_in')),
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       related_appointment_id TEXT REFERENCES appointments(id),
@@ -579,7 +583,7 @@ function migrateProviderNotificationsMoreTypes(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_provider_notifications_provider ON provider_notifications (provider_id, created_at DESC);
   `);
   db.exec('PRAGMA foreign_keys = ON');
-  console.log('migrated: provider_notifications.type CHECK constraint now allows consent/booking/reschedule events');
+  console.log('migrated: provider_notifications.type CHECK constraint now allows consent/booking/reschedule/check-in events');
 }
 
 /** Same rebuild pattern as migrateAppointmentsAllowCancelled, for the lab_test_bookings CHECK
