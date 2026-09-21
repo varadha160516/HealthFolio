@@ -243,6 +243,27 @@ CREATE TABLE IF NOT EXISTS preferred_providers (
   UNIQUE(member_id, provider_id)
 );
 
+-- A clinic's WhatsApp invite to HealthFolio (invites.ts). The code is the only way to create a patient
+-- account, so sign-up stays invite-only; when member_id is set the invitee claims that existing record
+-- (someone the clinic registered at the counter) instead of getting a new one. wa_number is the number the
+-- code was sent to — the audit log only ever holds its last four digits.
+CREATE TABLE IF NOT EXISTS patient_invites (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  invited_by_user_id TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  wa_number TEXT NOT NULL,
+  name TEXT,
+  member_id TEXT REFERENCES members(id),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  used_by_member_id TEXT REFERENCES members(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_patient_invites_provider ON patient_invites (provider_id, created_at DESC);
+
 -- Section 7.1 state machine. Section 8.2: the single source of truth for both sides.
 CREATE TABLE IF NOT EXISTS appointments (
   id TEXT PRIMARY KEY,

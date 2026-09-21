@@ -22,6 +22,7 @@ import { externalVisitsRouter } from './routes/externalVisits.js';
 import { afterVisitSummaryRouter } from './routes/afterVisitSummary.js';
 import { frontDeskRouter } from './routes/frontDesk.js';
 import { teleconsultRouter } from './routes/teleconsult.js';
+import { invitesRouter } from './routes/invites.js';
 import { extractionModeLabel } from './pipeline/extract.js';
 
 export function buildApp() {
@@ -32,6 +33,7 @@ export function buildApp() {
   app.get('/api/health', (_req, res) => res.json({ ok: true, extractionMode: extractionModeLabel() }));
 
   app.use('/api', authRouter);
+  app.use('/api', invitesRouter);
   app.use('/api', familyRouter);
   app.use('/api', documentsRouter);
   app.use('/api', parametersRouter);

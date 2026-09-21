@@ -26,7 +26,7 @@ export function toWaNumber(phone: string | null | undefined): string | null {
   return null;
 }
 
-function withDr(name: string): string {
+export function withDr(name: string): string {
   return /^dr\.?\s/i.test(name) ? name : `Dr. ${name}`;
 }
 
