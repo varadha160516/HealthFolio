@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../auth_provider.dart';
+import 'join_screen.dart';
 import '../theme.dart';
 import '../widgets/glass.dart';
 import '../widgets/hero_mark.dart';
@@ -13,8 +14,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _email = TextEditingController(text: 'priya@example.com');
-  final _password = TextEditingController(text: 'password123');
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _busy = false;
   String? _error;
   bool _obscure = true;
@@ -127,6 +128,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const JoinScreen())),
+                    child: const Text('Join with an invite code'),
                   ),
                     ],
                   ),

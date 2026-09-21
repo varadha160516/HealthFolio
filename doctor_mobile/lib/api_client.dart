@@ -239,6 +239,14 @@ class ApiClient {
       (await _post('/appointments/$appointmentId/whatsapp-link', {'kind': kind}) as Map<String, dynamic>)['url'] as String;
   Future<String> frontDeskWhatsappLink(String appointmentId, String kind) async =>
       (await _post('/frontdesk/appointments/$appointmentId/whatsapp-link', {'kind': kind}) as Map<String, dynamic>)['url'] as String;
+  // --- Patient invites (WhatsApp) ---
+  Future<Map<String, dynamic>> createInvite({String? phone, String? name, String? memberId, required bool patientAgreed}) async => await _post('/invites', {
+        'phone': ?phone,
+        'name': ?name,
+        'member_id': ?memberId,
+        'patient_agreed': patientAgreed,
+      });
+  Future<Map<String, dynamic>> getInviteSummary() async => await _get('/invites/summary');
   Future<void> updateOffersVideo(bool offers) => _patch('/providers/me/profile', {'offers_video': offers});
 
   // --- Provider onboarding (public — no session exists yet for an applicant) ---

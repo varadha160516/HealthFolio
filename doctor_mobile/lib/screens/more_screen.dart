@@ -10,6 +10,7 @@ import 'clinic_screen.dart';
 import 'templates_screen.dart';
 import 'analytics_screen.dart';
 import 'compliance_screen.dart';
+import 'invite_patient_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -41,6 +42,8 @@ class MoreScreen extends StatelessWidget {
           padding: EdgeInsets.zero,
           child: Column(children: [
             _MenuRow(icon: Icons.notifications_rounded, label: 'Notifications', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
+            const Divider(height: 1),
+            _MenuRow(icon: Icons.send_to_mobile_rounded, label: 'Invite patients', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvitePatientScreen()))),
             const Divider(height: 1),
             _MenuRow(icon: Icons.receipt_long_rounded, label: 'Billing', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillingScreen()))),
             const Divider(height: 1),

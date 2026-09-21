@@ -7,6 +7,7 @@ import '../../auth_provider.dart';
 import '../../theme.dart';
 import '../clinic_screen.dart';
 import '../../widgets/whatsapp_menu.dart';
+import '../invite_patient_screen.dart';
 import 'walk_in_sheet.dart';
 
 /// The front desk's whole app: the clinic's day across every doctor, and the few actions that move
@@ -114,12 +115,35 @@ class _FrontDeskShellState extends State<FrontDeskShell> {
   Future<void> _openWalkIn() async {
     final doctors = ((_queue?['doctors'] as List?) ?? const []).cast<Map<String, dynamic>>();
     if (doctors.isEmpty) return;
-    final created = await showModalBottomSheet<bool>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       builder: (_) => WalkInSheet(doctors: [for (final d in doctors) (d['id'] as String, d['name'] as String)]),
     );
-    if (created == true) _load(silent: true);
+    if (result == null) return;
+    _load(silent: true);
+    // Someone registered here has no HealthFolio account yet — the moment they're standing at the counter
+    // is the best time to offer one.
+    if (result['registered_new'] == true && mounted) _offerInvite(result);
+  }
+
+  Future<void> _offerInvite(Map<String, dynamic> walkIn) async {
+    final name = walkIn['name'] as String? ?? 'this patient';
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Invite $name to HealthFolio?'),
+        content: const Text('They get a WhatsApp message with a code to install the app. When they join, they see the record you just created for them.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Invite')),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => InvitePatientScreen(memberId: walkIn['member_id'] as String, name: name, agreedPrefilled: walkIn['whatsapp_opt_in'] == true),
+    ));
   }
 
   // Who to look at first: people with the doctor, then the waiting line (by token), then the rest of
@@ -166,6 +190,11 @@ class _FrontDeskShellState extends State<FrontDeskShell> {
         actions: [
           // Front desk is the only role allowed to edit the clinic's own details (PATCH /clinics/me),
           // and this screen used to be reachable from the doctor shell's More tab they no longer get.
+          IconButton(
+            icon: const Icon(Icons.send_to_mobile_rounded),
+            tooltip: 'Invite patients',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvitePatientScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.local_hospital_rounded),
             tooltip: 'Clinic details',

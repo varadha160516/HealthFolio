@@ -179,6 +179,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Creating an account signs you in, exactly like login() — see JoinScreen.
+  Future<void> signUp({required String inviteCode, String? name, required String email, required String password}) async {
+    final s = await api.signUp(inviteCode: inviteCode, name: name, email: email, password: password);
+    await api.setToken(s.token);
+    session = s;
+    locked = false;
+    justLoggedIn = true;
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     await api.setToken(null);
     // A shared device must not keep firing the signed-out account's appointment reminders. A lock()

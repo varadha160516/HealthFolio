@@ -128,6 +128,11 @@ class ApiClient {
 
   Future<Session> me() async => Session.fromJson(await _get('/me'));
 
+  // Joining is invite-only: the code a clinic sent over WhatsApp is what allows an account to be created.
+  Future<Map<String, dynamic>> checkInvite(String code) async => await _get('/signup/invite?code=${Uri.encodeQueryComponent(code)}');
+  Future<Session> signUp({required String inviteCode, String? name, required String email, required String password}) async =>
+      Session.fromJson(await _post('/signup', {'invite_code': inviteCode, 'name': ?name, 'email': email, 'password': password, 'accept_terms': true}));
+
   // --- Family / members ---
   Future<Map<String, dynamic>> getFamily({bool includeArchived = false}) async => await _get('/family${includeArchived ? '?include_archived=1' : ''}');
   Future<void> addMember(Map<String, dynamic> payload) => _post('/family/members', payload);

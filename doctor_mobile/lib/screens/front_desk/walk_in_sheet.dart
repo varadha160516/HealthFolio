@@ -84,7 +84,7 @@ class _WalkInSheetState extends State<WalkInSheet> {
     });
     final memberId = useMemberId ?? (_registering ? null : _selectedMemberId);
     try {
-      await _api.frontDeskCreateWalkIn({
+      final res = await _api.frontDeskCreateWalkIn({
         'provider_id': _doctorId,
         // The clinic's own wall-clock now, in the same zone-less form member bookings use.
         'datetime': DateTime.now().toIso8601String(),
@@ -100,7 +100,14 @@ class _WalkInSheetState extends State<WalkInSheet> {
           },
         if (confirmDuplicate) 'confirm_duplicate': true,
       });
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        Navigator.of(context).pop({
+          'registered_new': res['registered_new'] == true,
+          'member_id': res['member_id'],
+          'name': _name.text.trim(),
+          'whatsapp_opt_in': _whatsappOptIn,
+        });
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       final body = e.body;
@@ -122,7 +129,7 @@ class _WalkInSheetState extends State<WalkInSheet> {
     setState(() => _busy = true);
     try {
       await _api.frontDeskCheckIn(_existingVisit!['appointment_id'] as String);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop({'registered_new': false});
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
