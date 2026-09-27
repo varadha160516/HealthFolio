@@ -247,6 +247,8 @@ class ApiClient {
         'patient_agreed': patientAgreed,
       });
   Future<Map<String, dynamic>> getInviteSummary() async => await _get('/invites/summary');
+  // Closed-loop referrals — every referral this doctor sent, and the outcome once the specialist completes it.
+  Future<Map<String, dynamic>> getMyReferrals() async => await _get('/providers/me/referrals');
   Future<void> updateOffersVideo(bool offers) => _patch('/providers/me/profile', {'offers_video': offers});
 
   // --- Provider onboarding (public — no session exists yet for an applicant) ---

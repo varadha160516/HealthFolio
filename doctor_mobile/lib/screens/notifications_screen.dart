@@ -39,6 +39,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'appointment_booked' => (Icons.event_available_rounded, docAccent, docAccentLight),
         'appointment_rescheduled' => (Icons.update_rounded, docWarning, docWarningBg),
         'patient_checked_in' => (Icons.how_to_reg_rounded, docAccent, docAccentLight),
+        'referral_outcome_ready' => (Icons.call_split_rounded, docSuccess, docSuccessBg),
         _ => (Icons.notifications_rounded, docMuted, docSurfaceRaised),
       };
 
