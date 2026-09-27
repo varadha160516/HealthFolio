@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db, now } from '../db/db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { assertFamilyAccess } from './family.js';
 import { getHealthInsight } from '../pipeline/healthInsights.js';
 import { computeHealthIndex } from '../pipeline/healthIndex.js';
@@ -40,7 +41,7 @@ parametersRouter.get('/family/health-index-summary', requireAuth, (req, res) => 
 
 // Health insights agent (PRD Section 13.1) — a cached, display-only plain-language summary of
 // what changed in this member's recent results, for the Overview tab.
-parametersRouter.get('/parameters/health-insights', requireAuth, async (req, res) => {
+parametersRouter.get('/parameters/health-insights', requireAuth, asyncHandler(async (req, res) => {
   const memberId = req.query.member_id as string;
   if (!memberId || !assertFamilyAccess(req, res, memberId)) return;
   try {
@@ -50,7 +51,7 @@ parametersRouter.get('/parameters/health-insights', requireAuth, async (req, res
     console.error(err);
     res.status(502).json({ error: 'Could not generate health insights right now.' });
   }
-});
+}));
 
 // Includes pending_review — the member-facing confirmation gate is switched off for now
 // (see summary.ts's OVERVIEW_STATUSES), so Trends/Health Analysis must show the exact same set

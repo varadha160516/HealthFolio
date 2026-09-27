@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { assertFamilyAccess } from './family.js';
 import { runLabReportPipeline, runPrescriptionPipeline } from '../pipeline/orchestrator.js';
 import { extractionModeLabel } from '../pipeline/extract.js';
@@ -115,7 +116,7 @@ documentsRouter.get('/documents/:id/file/:filename', requireAuth, (req, res) => 
 
 // Stage 1 (INTAKE) + trigger stages 2-11. All files in one request are treated as pages of a
 // single logical document (Section 3.3 — multi-page uploads must not become one document per page).
-documentsRouter.post('/documents', requireAuth, upload.array('pages', 20), async (req, res) => {
+documentsRouter.post('/documents', requireAuth, upload.array('pages', 20), asyncHandler(async (req, res) => {
   const session = req.session!;
   if (session.role !== 'member_primary' && session.role !== 'member_dependent') {
     return res.status(403).json({ error: 'Only member roles can upload documents' });
@@ -206,4 +207,4 @@ documentsRouter.post('/documents', requireAuth, upload.array('pages', 20), async
     db.prepare(`UPDATE documents SET status = 'manual_entry_required' WHERE id = ?`).run(documentId);
     return res.status(201).json({ documentId, status: 'manual_entry_required', error: 'Extraction failed; manual entry required.' });
   }
-});
+}));

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { assertFamilyAccess } from './family.js';
 import { continueIntake, IntakeTurn } from '../pipeline/symptomIntake.js';
 
@@ -72,7 +73,7 @@ symptomsRouter.get('/symptom-entries/:id', requireAuth, (req, res) => {
 
 // Starts a new entry with the member's own opening description — the first user turn (Roadmap
 // Section 2.4). Urgent detection runs on this first message exactly the same as every later one.
-symptomsRouter.post('/members/:id/symptom-entries', requireAuth, async (req, res) => {
+symptomsRouter.post('/members/:id/symptom-entries', requireAuth, asyncHandler(async (req, res) => {
   const memberId = req.params.id;
   if (!assertFamilyAccess(req, res, memberId)) return;
   const description = (req.body?.message as string | undefined)?.trim();
@@ -95,10 +96,10 @@ symptomsRouter.post('/members/:id/symptom-entries', requireAuth, async (req, res
     console.error(err);
     res.status(502).json({ error: 'The symptom intake assistant is unavailable right now — please try again.' });
   }
-});
+}));
 
 // Continues an in-progress entry's clarifying Q&A (Roadmap Section 2.4).
-symptomsRouter.post('/symptom-entries/:id/messages', requireAuth, async (req, res) => {
+symptomsRouter.post('/symptom-entries/:id/messages', requireAuth, asyncHandler(async (req, res) => {
   const entry = assertEntryAccess(req, res, req.params.id);
   if (!entry) return;
   if (entry.status === 'completed') return res.status(409).json({ error: 'This entry is already complete' });
@@ -116,7 +117,7 @@ symptomsRouter.post('/symptom-entries/:id/messages', requireAuth, async (req, re
     console.error(err);
     res.status(502).json({ error: 'The symptom intake assistant is unavailable right now — please try again.' });
   }
-});
+}));
 
 function applyIntakeResult(entryId: string, result: Awaited<ReturnType<typeof continueIntake>>) {
   if (result.kind === 'urgent') {

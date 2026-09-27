@@ -10,6 +10,7 @@ import { uploadsDir } from './documents.js';
 import { SPECIALIZATIONS } from '../specializations.js';
 import { getExtractAdapter } from '../pipeline/extract.js';
 import { resolveMimeType, SUPPORTED_MEDIA_TYPES } from '../pipeline/mime.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const providerApplicationsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 10 } });
@@ -69,7 +70,7 @@ providerApplicationsRouter.get('/public/clinics', (_req, res) => {
 // typed anything, and hand back whatever the document actually states (never a guess) so the form
 // can prefill itself. Deliberately doesn't persist anything — the same file gets attached for real
 // via document_types/documents on the actual POST /provider-applications below.
-providerApplicationsRouter.post('/provider-applications/autofill', upload.single('document'), async (req, res) => {
+providerApplicationsRouter.post('/provider-applications/autofill', upload.single('document'), asyncHandler(async (req, res) => {
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'document file is required' });
   const mimeType = resolveMimeType(file.mimetype, file.originalname);
@@ -82,11 +83,11 @@ providerApplicationsRouter.post('/provider-applications/autofill', upload.single
     console.error('Provider credential autofill failed:', e);
     res.status(502).json({ error: 'Could not read this document automatically — please fill the form in manually.' });
   }
-});
+}));
 
 // --- Submission ---
 
-providerApplicationsRouter.post('/provider-applications', upload.array('documents', 10), async (req, res) => {
+providerApplicationsRouter.post('/provider-applications', upload.array('documents', 10), asyncHandler(async (req, res) => {
   const b = req.body ?? {};
   const { email, password, full_name, phone, role_requested, specialty, registration_number, qualifications, years_of_experience, gst_number, default_fee, clinic_mode, clinic_id, new_clinic_name, new_clinic_address, new_clinic_city } = b;
 
@@ -147,7 +148,7 @@ providerApplicationsRouter.post('/provider-applications', upload.array('document
   }
 
   res.status(201).json({ applicationId: id, referenceCode });
-});
+}));
 
 // --- Status check + resubmission, gated by email + reference_code (the only "auth" an applicant has) ---
 
@@ -168,7 +169,7 @@ providerApplicationsRouter.get('/provider-applications/status', (req, res) => {
 // Resubmission after rejection reuses the same application row (same reference code) rather than
 // creating a new one — one continuous record for an admin to see the history of, and the applicant
 // doesn't have to memorize a second code.
-providerApplicationsRouter.post('/provider-applications/:id/resubmit', upload.array('documents', 10), async (req, res) => {
+providerApplicationsRouter.post('/provider-applications/:id/resubmit', upload.array('documents', 10), asyncHandler(async (req, res) => {
   const app = db.prepare('SELECT * FROM provider_applications WHERE id = ?').get(req.params.id) as any;
   if (!app) return res.status(404).json({ error: 'Not found' });
   const { email, reference_code } = req.body ?? {};
@@ -201,4 +202,4 @@ providerApplicationsRouter.post('/provider-applications/:id/resubmit', upload.ar
   }
 
   res.json({ ok: true });
-});
+}));

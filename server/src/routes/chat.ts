@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { assertFamilyAccess } from './family.js';
 import { answerChatQuestion, ChatTurn } from '../pipeline/chatAssistant.js';
 
@@ -16,7 +17,7 @@ chatRouter.get('/members/:id/chat', requireAuth, (req, res) => {
   res.json(rows);
 });
 
-chatRouter.post('/members/:id/chat', requireAuth, async (req, res) => {
+chatRouter.post('/members/:id/chat', requireAuth, asyncHandler(async (req, res) => {
   const memberId = req.params.id;
   if (!assertFamilyAccess(req, res, memberId)) return;
   const message = (req.body?.message as string | undefined)?.trim();
@@ -61,7 +62,7 @@ chatRouter.post('/members/:id/chat', requireAuth, async (req, res) => {
     console.error(err);
     res.status(502).json({ error: 'The health assistant is unavailable right now — please try again.' });
   }
-});
+}));
 
 chatRouter.delete('/members/:id/chat', requireAuth, (req, res) => {
   const memberId = req.params.id;

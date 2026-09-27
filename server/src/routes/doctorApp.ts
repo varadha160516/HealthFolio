@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { resolveAppointment, assertAppointmentVisible } from './appointments.js';
 import { grantsDataAccess } from '../state-machine/appointment.js';
 import { structureConsultationTranscript } from '../pipeline/consultationScribe.js';
@@ -119,7 +120,7 @@ doctorAppRouter.put('/appointments/:id/consultation-notes', requireAuth, require
 // Ambient scribe — structures a raw speech-to-text transcript into the same shape as
 // consultation-notes above, so the doctor can review/edit before it's ever saved. Ephemeral: never
 // persists anything itself, same pattern as the provider-credential OCR autofill.
-doctorAppRouter.post('/appointments/:id/scribe', requireAuth, requireRole('provider_doctor'), async (req, res) => {
+doctorAppRouter.post('/appointments/:id/scribe', requireAuth, requireRole('provider_doctor'), asyncHandler(async (req, res) => {
   const appt = loadUnlocked(req, res);
   if (!appt) return;
   const transcript = (req.body?.transcript as string | undefined) ?? '';
@@ -131,7 +132,7 @@ doctorAppRouter.post('/appointments/:id/scribe', requireAuth, requireRole('provi
     console.error(`Ambient scribe structuring failed for appointment ${appt.id}:`, e);
     res.status(502).json({ error: 'Could not structure this recording — please fill the notes in manually.' });
   }
-});
+}));
 
 // --- Lab orders — a doctor ordering tests mid-consultation, distinct from a member's own
 // self-service booking flow but landing in the exact same lab_test_bookings table/pipeline (so a

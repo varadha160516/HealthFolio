@@ -5,6 +5,7 @@ import path from 'node:path';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { assertFamilyAccess } from './family.js';
 import { AppointmentStatus, canTransition, CONSENT_WINDOW_MINUTES, grantsDataAccess } from '../state-machine/appointment.js';
 import { logAudit, getAuditLog } from '../audit.js';
@@ -429,7 +430,7 @@ appointmentsRouter.post('/appointments/:id/respond-consent', requireAuth, (req, 
 // Consent explainer agent (Roadmap Section 2.5) — plain-language explanation of the pending
 // request, for the member to read before responding. Member-only: this explains a request TO
 // them, the provider side already sees its own structured request data.
-appointmentsRouter.get('/appointments/:id/consent-explanation', requireAuth, async (req, res) => {
+appointmentsRouter.get('/appointments/:id/consent-explanation', requireAuth, asyncHandler(async (req, res) => {
   const session = req.session!;
   if (session.role !== 'member_primary' && session.role !== 'member_dependent') return res.status(403).json({ error: 'Only members can view this' });
   const appt = resolveAppointment(req.params.id);
@@ -443,7 +444,7 @@ appointmentsRouter.get('/appointments/:id/consent-explanation', requireAuth, asy
     console.error(err);
     res.status(502).json({ error: 'Could not generate an explanation right now.' });
   }
-});
+}));
 
 // OTP fallback (Section 7.1) — carries the same evidentiary weight as in-app approval, not a lesser path.
 appointmentsRouter.post('/appointments/:id/verify-otp', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), (req, res) => {
@@ -475,7 +476,7 @@ appointmentsRouter.post('/appointments/:id/start-consultation', requireAuth, req
 // Pre-visit prep agent (Roadmap Section 2.6) — a drafted brief, only ever served while this visit
 // is actually unlocked (Section 7.2). Access parity with the doctor console's own unlockedData:
 // no broader read scope than a human doctor has at this exact moment.
-appointmentsRouter.get('/appointments/:id/previsit-brief', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), async (req, res) => {
+appointmentsRouter.get('/appointments/:id/previsit-brief', requireAuth, requireRole('provider_doctor', 'provider_clinic_admin'), asyncHandler(async (req, res) => {
   const appt = resolveAppointment(req.params.id);
   if (!appt) return res.status(404).json({ error: 'Not found' });
   if (!assertAppointmentVisible(req, res, appt)) return;
@@ -486,7 +487,7 @@ appointmentsRouter.get('/appointments/:id/previsit-brief', requireAuth, requireR
     console.error(err);
     res.status(502).json({ error: 'Could not generate a pre-visit brief right now.' });
   }
-});
+}));
 
 // Medication reconciliation agent (Roadmap Section 2.7) — checks a draft against allergies and
 // current medications already on file. Advisory only: flags for the doctor's attention, never
@@ -503,7 +504,7 @@ appointmentsRouter.post('/appointments/:id/reconcile-draft', requireAuth, requir
 
 // Prescription issuance (Section 8.1 step 6) — structured input from a verified in-app action,
 // skips OCR entirely and lands directly in the member's record (Section 3.4).
-appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireRole('provider_doctor'), async (req, res) => {
+appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireRole('provider_doctor'), asyncHandler(async (req, res) => {
   const appt = resolveAppointment(req.params.id);
   if (!appt) return res.status(404).json({ error: 'Not found' });
   if (!assertAppointmentVisible(req, res, appt)) return;
@@ -590,7 +591,7 @@ appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireR
     );
   }
   res.status(201).json({ prescriptionId });
-});
+}));
 
 // Completion (Section 7.1/7.3/8.1 step 7) — revokes access immediately; a later visit needs a
 // fresh check-in and a fresh grant. Not standing access.

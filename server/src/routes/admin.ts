@@ -4,6 +4,7 @@ import path from 'node:path';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { currentDictionaryVersion } from '../dictionary/loader.js';
 import { draftCandidateResolution, scanForDrift } from '../pipeline/dictionaryCuration.js';
 import { logAudit } from '../audit.js';
@@ -29,7 +30,7 @@ adminRouter.get('/admin/candidates/:id', (req, res) => {
 
 // Dictionary curation agent (Roadmap Section 2.9b) — a draft the admin can accept or override,
 // computed on demand (not eagerly for the whole queue) since it may call the model.
-adminRouter.get('/admin/candidates/:id/draft', async (req, res) => {
+adminRouter.get('/admin/candidates/:id/draft', asyncHandler(async (req, res) => {
   const row = db.prepare('SELECT * FROM new_parameter_candidates WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   try {
@@ -39,7 +40,7 @@ adminRouter.get('/admin/candidates/:id/draft', async (req, res) => {
     console.error('Candidate draft failed:', err);
     res.status(500).json({ error: 'Draft failed' });
   }
-});
+}));
 
 interface CandidateRow {
   id: string;
@@ -165,7 +166,7 @@ adminRouter.get('/admin/dictionary/drift-flags', (req, res) => {
   res.json(rows);
 });
 
-adminRouter.post('/admin/dictionary/drift-scan', async (req, res) => {
+adminRouter.post('/admin/dictionary/drift-scan', asyncHandler(async (req, res) => {
   const canonicalParameterId = (req.body?.canonical_parameter_id as string | undefined) || undefined;
   try {
     const flags = await scanForDrift(canonicalParameterId);
@@ -174,7 +175,7 @@ adminRouter.post('/admin/dictionary/drift-scan', async (req, res) => {
     console.error('Drift scan failed:', err);
     res.status(500).json({ error: 'Scan failed' });
   }
-});
+}));
 
 adminRouter.post('/admin/dictionary/drift-flags/:id/dismiss', (req, res) => {
   const row = db.prepare('SELECT id FROM dictionary_drift_flags WHERE id = ?').get(req.params.id);

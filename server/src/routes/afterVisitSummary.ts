@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db, now } from '../db/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { resolveAppointment, assertAppointmentVisible } from './appointments.js';
 import { buildVisitSummary } from './doctorApp.js';
 import { draftAfterVisitSummary } from '../pipeline/afterVisitSummary.js';
@@ -43,7 +44,7 @@ afterVisitSummaryRouter.get('/appointments/:id/after-visit-summary', requireAuth
   res.json({ summary, suggestedLanguage: previous?.language ?? 'English', languages: SUPPORTED_LANGUAGES });
 });
 
-afterVisitSummaryRouter.post('/appointments/:id/after-visit-summary/draft', requireAuth, requireRole('provider_doctor'), async (req, res) => {
+afterVisitSummaryRouter.post('/appointments/:id/after-visit-summary/draft', requireAuth, requireRole('provider_doctor'), asyncHandler(async (req, res) => {
   const appt = loadCompletedOwnVisit(req, res);
   if (!appt) return;
   const data = buildVisitSummary(appt.id);
@@ -89,9 +90,9 @@ afterVisitSummaryRouter.post('/appointments/:id/after-visit-summary/draft', requ
     console.error(`After-visit summary draft failed for appointment ${appt.id}:`, e);
     res.status(502).json({ error: 'Could not draft a summary right now.' });
   }
-});
+}));
 
-afterVisitSummaryRouter.post('/appointments/:id/after-visit-summary/translate', requireAuth, requireRole('provider_doctor'), async (req, res) => {
+afterVisitSummaryRouter.post('/appointments/:id/after-visit-summary/translate', requireAuth, requireRole('provider_doctor'), asyncHandler(async (req, res) => {
   const appt = loadCompletedOwnVisit(req, res);
   if (!appt) return;
   const englishText = (req.body?.english_text as string | undefined)?.trim();
@@ -105,7 +106,7 @@ afterVisitSummaryRouter.post('/appointments/:id/after-visit-summary/translate', 
     console.error(`After-visit summary translation failed for appointment ${appt.id}:`, e);
     res.status(502).json({ error: 'Translation is not available right now.' });
   }
-});
+}));
 
 afterVisitSummaryRouter.put('/appointments/:id/after-visit-summary', requireAuth, requireRole('provider_doctor'), (req, res) => {
   const appt = loadCompletedOwnVisit(req, res);
