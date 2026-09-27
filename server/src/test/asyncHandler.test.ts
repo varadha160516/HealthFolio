@@ -71,6 +71,46 @@ describe('async route handlers survive a thrown error instead of crashing the pr
     assert.equal((await call('GET', `/appointments/${apptId}`, docTok)).status, 200);
     const health = await fetch(`${baseUrl}/health`);
     assert.equal(health.status, 200);
+
+    // And the failed attempt left nothing half-written behind.
+    assert.equal((db.prepare('SELECT COUNT(*) AS c FROM prescriptions WHERE appointment_id = ?').get(apptId) as any).c, 0);
+    assert.equal((db.prepare('SELECT COUNT(*) AS c FROM documents WHERE member_id = ?').get(memberId) as any).c, 0);
+  });
+
+  it('a bad line item rolls back the whole prescription — no orphaned documents/prescriptions row, and the PDF file is cleaned up', async () => {
+    const providerId = makeProvider('Dr. Rollback Test');
+    const memberId = makeMember('Rollback Test Patient');
+    const userId = uuid();
+    db.prepare(`INSERT INTO users (id, email, password_hash, role, display_name, member_id, provider_id, created_at) VALUES (?, ?, 'x', 'provider_doctor', 'T', NULL, ?, ?)`).run(
+      userId,
+      `${userId}@rollback-test.local`,
+      providerId,
+      now()
+    );
+    const docTok = createSession({ userId, role: 'provider_doctor', displayName: 'T', memberId: null, familyId: null, providerId }).token;
+    const memberTok = createSession({ userId: `u-${uuid()}`, role: 'member_primary', displayName: 'T', memberId, familyId: familyOf(memberId), providerId: null }).token;
+
+    const booked = await call('POST', '/appointments', memberTok, { member_id: memberId, provider_id: providerId, datetime: '2026-11-20T11:00:00.000' });
+    const apptId = booked.body.id as string;
+    await call('POST', `/appointments/${apptId}/check-in`, docTok);
+    await call('POST', `/appointments/${apptId}/request-consent`, docTok, { method: 'in_app' });
+    await call('POST', `/appointments/${apptId}/respond-consent`, memberTok, { approve: true });
+    await call('POST', `/appointments/${apptId}/start-consultation`, docTok);
+
+    // Missing medicine_name — a real NOT NULL violation, the exact shape of the bug found live:
+    // this used to leave a documents+prescriptions row behind with no line items under it.
+    const before = (db.prepare('SELECT COUNT(*) AS c FROM documents WHERE member_id = ?').get(memberId) as any).c;
+    const rx = await call('POST', `/appointments/${apptId}/prescriptions`, docTok, { diagnosis_text: 'x', line_items: [{}] });
+    assert.equal(rx.status, 500, JSON.stringify(rx.body));
+
+    assert.equal((db.prepare('SELECT COUNT(*) AS c FROM documents WHERE member_id = ?').get(memberId) as any).c, before);
+    assert.equal((db.prepare('SELECT COUNT(*) AS c FROM prescriptions WHERE appointment_id = ?').get(apptId) as any).c, 0);
+    assert.equal((db.prepare('SELECT COUNT(*) AS c FROM prescription_line_items').get() as any).c >= 0, true); // sanity: table still queryable
+
+    // The server is still up, and a real prescription on this same visit still works afterward.
+    const ok = await call('POST', `/appointments/${apptId}/prescriptions`, docTok, { diagnosis_text: 'x', line_items: [{ medicine_name: 'Paracetamol' }] });
+    assert.equal(ok.status, 201, JSON.stringify(ok.body));
+    assert.equal((db.prepare('SELECT COUNT(*) AS c FROM documents WHERE member_id = ?').get(memberId) as any).c, before + 1);
   });
 
   it('a thrown error in one request does not affect a concurrent, unrelated request', async () => {

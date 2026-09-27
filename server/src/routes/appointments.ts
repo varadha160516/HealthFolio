@@ -502,6 +502,70 @@ appointmentsRouter.post('/appointments/:id/reconcile-draft', requireAuth, requir
   res.json({ flags: checkPrescriptionDraft(appt.member_id, line_items) });
 });
 
+// The actual writes for issuing a prescription, as one transaction: the documents row, the
+// prescriptions row, and every line item + its medication schedule. Without this, a failure
+// partway through the line-items loop (say, a malformed item) left a documents+prescriptions row
+// committed with no line items behind them — a real orphan found while fixing the crash this same
+// route used to cause on that exact failure. Now either all of it lands, or none of it does.
+const insertPrescriptionRecords = db.transaction(
+  (args: {
+    documentId: string;
+    memberId: string;
+    uploadedByUserId: string;
+    docDir: string;
+    checksum: string;
+    providerName: string | null;
+    appointmentId: string;
+    providerId: string;
+    diagnosisText: string | null;
+    icdCode: string | null;
+    notes: string | null;
+    lineItems: any[];
+  }) => {
+    db.prepare(
+      `INSERT INTO documents (id, member_id, uploaded_by_user_id, document_type, storage_path, checksum, page_count, upload_date, source_lab_name, status, origin, created_at)
+       VALUES (?, ?, ?, 'prescription', ?, ?, 1, ?, ?, 'parsed', 'provider_issued', ?)`
+    ).run(args.documentId, args.memberId, args.uploadedByUserId, args.docDir, args.checksum, now(), args.providerName, now());
+
+    const prescriptionId = uuid();
+    db.prepare(
+      `INSERT INTO prescriptions (id, appointment_id, provider_id, member_id, document_id, diagnosis_text, icd_code, notes, issued_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(prescriptionId, args.appointmentId, args.providerId, args.memberId, args.documentId, args.diagnosisText, args.icdCode, args.notes, now());
+
+    const insertLine = db.prepare(
+      `INSERT INTO prescription_line_items (id, prescription_id, medicine_name, strength, dosage, frequency, duration, instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const insertSchedule = db.prepare(
+      `INSERT INTO medication_schedules
+         (id, member_id, prescription_line_item_id, medicine_name, strength, dose_amount, frequency, times, day_of_week, start_date, end_date, prescribed_by, purpose, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'daily', ?, NULL, ?, ?, ?, ?, 'active', ?)`
+    );
+    const startDate = now().slice(0, 10);
+    for (const item of args.lineItems) {
+      const lineItemId = uuid();
+      insertLine.run(lineItemId, prescriptionId, item.medicine_name, item.strength ?? null, item.dosage ?? null, item.frequency ?? null, item.duration ?? null, item.instructions ?? null);
+      // Lands directly in the member's Medications tab, same as a doctor's lab order lands
+      // directly in the Lab Tests tab -- no OCR-review gate, since this came from a verified
+      // in-app action during a consented visit rather than a scanned document.
+      insertSchedule.run(
+        uuid(),
+        args.memberId,
+        lineItemId,
+        item.medicine_name,
+        item.strength ?? null,
+        item.dosage ?? null,
+        JSON.stringify(mapDoctorFrequencyToTimes(item.frequency)),
+        startDate,
+        computeMedicationEndDate(startDate, item.duration),
+        args.providerName,
+        args.diagnosisText,
+        now()
+      );
+    }
+    return prescriptionId;
+  }
+);
+
 // Prescription issuance (Section 8.1 step 6) — structured input from a verified in-app action,
 // skips OCR entirely and lands directly in the member's record (Section 3.4).
 appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireRole('provider_doctor'), asyncHandler(async (req, res) => {
@@ -551,44 +615,29 @@ appointmentsRouter.post('/appointments/:id/prescriptions', requireAuth, requireR
   });
   fs.writeFileSync(path.join(docDir, 'page-1.pdf'), pdfBytes);
   const checksum = crypto.createHash('sha256').update(pdfBytes).digest('hex');
-  db.prepare(
-    `INSERT INTO documents (id, member_id, uploaded_by_user_id, document_type, storage_path, checksum, page_count, upload_date, source_lab_name, status, origin, created_at)
-     VALUES (?, ?, ?, 'prescription', ?, ?, 1, ?, ?, 'parsed', 'provider_issued', ?)`
-  ).run(documentId, appt.member_id, req.session!.userId, docDir, checksum, now(), provider?.name ?? null, now());
 
-  const prescriptionId = uuid();
-  db.prepare(
-    `INSERT INTO prescriptions (id, appointment_id, provider_id, member_id, document_id, diagnosis_text, icd_code, notes, issued_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(prescriptionId, appt.id, appt.provider_id, appt.member_id, documentId, diagnosis_text ?? null, icd_code ?? null, notes ?? null, now());
-  const insertLine = db.prepare(
-    `INSERT INTO prescription_line_items (id, prescription_id, medicine_name, strength, dosage, frequency, duration, instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  const insertSchedule = db.prepare(
-    `INSERT INTO medication_schedules
-       (id, member_id, prescription_line_item_id, medicine_name, strength, dose_amount, frequency, times, day_of_week, start_date, end_date, prescribed_by, purpose, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'daily', ?, NULL, ?, ?, ?, ?, 'active', ?)`
-  );
-  const startDate = now().slice(0, 10);
-  for (const item of line_items) {
-    const lineItemId = uuid();
-    insertLine.run(lineItemId, prescriptionId, item.medicine_name, item.strength ?? null, item.dosage ?? null, item.frequency ?? null, item.duration ?? null, item.instructions ?? null);
-    // Lands directly in the member's Medications tab, same as a doctor's lab order lands
-    // directly in the Lab Tests tab -- no OCR-review gate, since this came from a verified
-    // in-app action during a consented visit rather than a scanned document.
-    insertSchedule.run(
-      uuid(),
-      appt.member_id,
-      lineItemId,
-      item.medicine_name,
-      item.strength ?? null,
-      item.dosage ?? null,
-      JSON.stringify(mapDoctorFrequencyToTimes(item.frequency)),
-      startDate,
-      computeMedicationEndDate(startDate, item.duration),
-      provider?.name ?? null,
-      diagnosis_text ?? null,
-      now()
-    );
+  let prescriptionId: string;
+  try {
+    prescriptionId = insertPrescriptionRecords({
+      documentId,
+      memberId: appt.member_id,
+      uploadedByUserId: req.session!.userId,
+      docDir,
+      checksum,
+      providerName: provider?.name ?? null,
+      appointmentId: appt.id,
+      providerId: appt.provider_id,
+      diagnosisText: diagnosis_text ?? null,
+      icdCode: icd_code ?? null,
+      notes: notes ?? null,
+      lineItems: line_items,
+    });
+  } catch (err) {
+    // Nothing was committed (the transaction rolled back) — the PDF file on disk is the only
+    // leftover, and it's harmless (nothing in the database points at it), but there's no reason to
+    // keep it either.
+    fs.rmSync(docDir, { recursive: true, force: true });
+    throw err;
   }
   res.status(201).json({ prescriptionId });
 }));
