@@ -14,6 +14,7 @@ import { runSafetyCheck } from '../pipeline/safetyNet.js';
 import { formatAppointmentWhen, memberName, notifyProvider } from '../notifications.js';
 import { checkInAppointment, queueInfo } from '../queue.js';
 import { whatsappAvailable } from '../whatsapp.js';
+import { closeReferralLoop } from '../referralOutcomes.js';
 import { adherenceForVisit } from '../pipeline/adherence.js';
 import { getConsentExplanation } from '../pipeline/consentExplainer.js';
 import { getPrevisitBrief } from '../pipeline/previsitPrep.js';
@@ -615,7 +616,10 @@ appointmentsRouter.post('/appointments/:id/complete', requireAuth, requireRole('
 
   db.prepare(`UPDATE appointments SET status = 'completed', updated_at = ? WHERE id = ?`).run(now(), appt.id);
   if (appt.consent_grant_id) db.prepare(`UPDATE consent_grants SET revoked_at = ? WHERE id = ?`).run(now(), appt.consent_grant_id);
-  if (appt.referral_id) db.prepare(`UPDATE referrals SET status = 'completed', updated_at = ? WHERE id = ?`).run(now(), appt.referral_id);
+  if (appt.referral_id) {
+    db.prepare(`UPDATE referrals SET status = 'completed', updated_at = ? WHERE id = ?`).run(now(), appt.referral_id);
+    closeReferralLoop(appt.id, appt.referral_id);
+  }
   logAudit(req.session!.userId, req.session!.role, 'visit_completed_access_revoked', appt.member_id, { appointmentId: appt.id });
   res.json({ ok: true, invoiceId });
 });

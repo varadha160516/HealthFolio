@@ -12,6 +12,7 @@ export function runMigrations(db: Db) {
   migrateAppointmentsAllowCancelled(db);
   migrateLabTestBookingsAllowCancelled(db);
   migrateProviderNotificationsMoreTypes(db);
+  migrateProviderNotificationsReferralOutcome(db);
 
   // Profile tab fields — kept on `members` rather than duplicated anywhere else, since these are
   // stable facts about the person, not derived from uploads.
@@ -420,6 +421,14 @@ export function runMigrations(db: Db) {
   ensureColumn(db, 'appointments', 'video_patient_joined_at', 'TEXT');
   ensureColumn(db, 'appointments', 'video_doctor_joined_at', 'TEXT');
   ensureColumn(db, 'members', 'whatsapp_opt_in', 'INTEGER NOT NULL DEFAULT 0');
+  // Closed-loop referrals (referralOutcomes.ts).
+  ensureColumn(db, 'referrals', 'outcome_diagnosis_text', 'TEXT');
+  ensureColumn(db, 'referrals', 'outcome_medicines_json', 'TEXT');
+  ensureColumn(db, 'referrals', 'outcome_advice_json', 'TEXT');
+  ensureColumn(db, 'referrals', 'outcome_follow_up_after', 'TEXT');
+  ensureColumn(db, 'referrals', 'outcome_follow_up_reason', 'TEXT');
+  ensureColumn(db, 'referrals', 'outcome_safety_flags_json', 'TEXT');
+  ensureColumn(db, 'referrals', 'outcome_ready_at', 'TEXT');
 }
 
 /** Best-effort backfill by display_name pattern, not a hand-curated per-row mapping — the
@@ -562,6 +571,35 @@ function migrateAppointmentsAllowCancelled(db: Db) {
   `);
   db.exec('PRAGMA foreign_keys = ON');
   console.log("migrated: appointments.status CHECK constraint now allows 'cancelled'");
+}
+
+/** Same rebuild pattern once more, for provider_notifications.type — adds the closed-loop-referral
+ * event (see referralOutcomes.ts). */
+function migrateProviderNotificationsReferralOutcome(db: Db) {
+  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'provider_notifications'`).get() as { sql: string } | undefined;
+  if (!row) return; // table doesn't exist yet — schema.sql will create it correctly
+  if (row.sql.includes("'referral_outcome_ready'")) return; // already migrated
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE provider_notifications_migrated (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES providers(id),
+      type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled','patient_checked_in','referral_outcome_ready')),
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      related_appointment_id TEXT REFERENCES appointments(id),
+      created_at TEXT NOT NULL,
+      read_at TEXT
+    );
+    INSERT INTO provider_notifications_migrated (id, provider_id, type, title, body, related_appointment_id, created_at, read_at)
+      SELECT id, provider_id, type, title, body, related_appointment_id, created_at, read_at FROM provider_notifications;
+    DROP TABLE provider_notifications;
+    ALTER TABLE provider_notifications_migrated RENAME TO provider_notifications;
+    CREATE INDEX IF NOT EXISTS idx_provider_notifications_provider ON provider_notifications (provider_id, created_at DESC);
+  `);
+  db.exec('PRAGMA foreign_keys = ON');
+  console.log('migrated: provider_notifications.type CHECK constraint now allows referral_outcome_ready');
 }
 
 /** Same rebuild pattern again, for provider_notifications.type — the doctor's feed grows beyond

@@ -6,6 +6,7 @@ import { resolveAppointment, assertAppointmentVisible } from './appointments.js'
 import { grantsDataAccess } from '../state-machine/appointment.js';
 import { structureConsultationTranscript } from '../pipeline/consultationScribe.js';
 import { parseLanguage } from '../languages.js';
+import { serializeReferral } from '../referralOutcomes.js';
 
 export const doctorAppRouter = Router();
 
@@ -190,6 +191,24 @@ doctorAppRouter.get('/appointments/:id/referrals', requireAuth, requireRole('pro
   if (!appt) return;
   const rows = db.prepare('SELECT * FROM referrals WHERE referring_appointment_id = ? ORDER BY created_at DESC').all(appt.id);
   res.json(rows);
+});
+
+// The referring doctor's own view of every referral they've sent — how it closes the loop. Doctor
+// only: this carries diagnosis and medicines, which the front desk never sees for a patient's care.
+doctorAppRouter.get('/providers/me/referrals', requireAuth, requireRole('provider_doctor'), (req, res) => {
+  const providerId = req.session!.providerId;
+  const rows = db
+    .prepare(
+      `SELECT r.*, m.name AS patient_name, tp.name AS target_provider_name
+       FROM referrals r
+       JOIN members m ON m.id = r.member_id
+       LEFT JOIN providers tp ON tp.id = r.target_provider_id
+       WHERE r.referring_provider_id = ?
+       ORDER BY r.created_at DESC`
+    )
+    .all(providerId) as any[];
+  const referrals = rows.map(serializeReferral);
+  res.json({ sent: referrals.length, outcomes_ready: referrals.filter((r) => r.outcome).length, referrals });
 });
 
 // --- Follow-up scheduling — books the next appointment directly rather than just noting an

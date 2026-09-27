@@ -364,6 +364,15 @@ CREATE TABLE IF NOT EXISTS referrals (
   urgency TEXT NOT NULL DEFAULT 'routine' CHECK (urgency IN ('routine','urgent')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','booked','completed','cancelled')),
   resulting_appointment_id TEXT REFERENCES appointments(id), -- set once the family books the referred visit
+  -- Closed-loop outcome (referralOutcomes.ts): copied programmatically from the specialist's own
+  -- visit the moment it completes, never drafted or invented. outcome_ready_at is null until then.
+  outcome_diagnosis_text TEXT,
+  outcome_medicines_json TEXT,
+  outcome_advice_json TEXT,
+  outcome_follow_up_after TEXT,
+  outcome_follow_up_reason TEXT,
+  outcome_safety_flags_json TEXT,
+  outcome_ready_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -661,7 +670,7 @@ CREATE TABLE IF NOT EXISTS consultation_notes (
 CREATE TABLE IF NOT EXISTS provider_notifications (
   id TEXT PRIMARY KEY,
   provider_id TEXT NOT NULL REFERENCES providers(id),
-  type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled','patient_checked_in')),
+  type TEXT NOT NULL CHECK (type IN ('lab_report_ready','appointment_cancelled','consent_granted','consent_denied','appointment_booked','appointment_rescheduled','patient_checked_in','referral_outcome_ready')),
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   related_appointment_id TEXT REFERENCES appointments(id),

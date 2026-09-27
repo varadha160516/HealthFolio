@@ -8,7 +8,8 @@ export type ProviderNotificationType =
   | 'consent_denied'
   | 'appointment_booked'
   | 'appointment_rescheduled'
-  | 'patient_checked_in';
+  | 'patient_checked_in'
+  | 'referral_outcome_ready';
 
 /**
  * The single place a doctor-facing event is recorded. ClinDesk polls the resulting feed today
